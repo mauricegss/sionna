@@ -1,0 +1,120 @@
+\documentclass[conference]{IEEEtran}
+
+% ============================================
+% PACOTES
+% ============================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+
+\begin{document}
+
+% ============================================
+% TÍTULO
+% ============================================
+\title{Estimativa de Canal Usando Preâmbulo OFDM: Um Estudo Baseado em Simulações com a Biblioteca NVIDIA Sionna}
+
+% ============================================
+% AUTORES
+% ============================================
+\author{
+    \IEEEauthorblockN{Maurice Golin Soares dos Santos}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+    \and
+    \IEEEauthorblockN{Vinicius Pereira Luz}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+    \and
+    \IEEEauthorblockN{Natalia Mendes Goes}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+}
+
+% ============================================
+% CAMPO DO PROFESSOR
+% ============================================
+\IEEEspecialpapernotice{Disciplina: Tópicos em Redes sem Fio \\ Professor: Saulo Jorge Beltrão de Queiroz}
+
+\maketitle
+
+% ============================================
+% RESUMO
+% ============================================
+\begin{abstract}
+Este trabalho propõe um estudo sobre técnicas de estimativa de canal baseadas em preâmbulo em sistemas OFDM (\textit{Orthogonal Frequency-Division Multiplexing}), utilizando a biblioteca de simulação de camada física NVIDIA Sionna. O objetivo é avaliar, por meio de experimentos numéricos, o desempenho de estimadores clássicos como \textit{Least Squares} (LS) e \textit{Linear Minimum Mean Square Error} (LMMSE) sob diferentes condições de canal e níveis de relação sinal-ruído (SNR). Os resultados serão analisados em termos de taxa de erro de bit (BER) e erro quadrático médio (MSE) da estimativa, permitindo uma compreensão prática dos conceitos teóricos abordados na disciplina.
+\end{abstract}
+
+\begin{IEEEkeywords}
+OFDM, estimativa de canal, preâmbulo, Sionna, LS, LMMSE, 5G NR.
+\end{IEEEkeywords}
+
+% ============================================
+% INTRODUÇÃO
+% ============================================
+\section{Introdução}
+
+Os sistemas de comunicação sem fio modernos, incluindo o 4G LTE, o 5G NR e as diversas gerações do padrão Wi-Fi (IEEE 802.11a/n/ac/ax), adotam amplamente a técnica de multiplexação por divisão de frequências ortogonais (OFDM) como esquema de modulação multiportadora \cite{goldsmith2005, proakis2008}. O OFDM divide a banda de transmissão em múltiplas subportadoras ortogonais, conferindo ao sistema elevada eficiência espectral e robustez contra os efeitos de propagação multipercurso, graças à inserção do prefixo cíclico (CP). No entanto, para que o receptor possa realizar a demodulação coerente dos dados recebidos, é imprescindível que a resposta do canal de comunicação seja conhecida com precisão suficiente. Nesse contexto, a estimativa de canal constitui uma das etapas mais críticas da cadeia de recepção em sistemas OFDM, exercendo influência direta sobre o desempenho global do sistema em termos de taxa de erro de bit (BER) \cite{3gpp38211}.
+
+A estimativa de canal baseada em preâmbulo é uma abordagem amplamente empregada em padrões de comunicação reais, na qual símbolos de referência conhecidos pelo receptor — denominados pilotos — são inseridos em posições predefinidas da grade de recursos OFDM antes dos dados de usuário \cite{haykin2001}. A partir desses símbolos conhecidos, o receptor aplica algoritmos de estimativa para inferir a resposta em frequência do canal nas demais subportadoras. Duas técnicas clássicas se destacam nesse cenário: o estimador por mínimos quadrados (\textit{Least Squares} — LS), que oferece baixa complexidade computacional, porém é mais suscetível ao ruído; e o estimador linear de mínimo erro quadrático médio (\textit{Linear Minimum Mean Square Error} — LMMSE), que incorpora conhecimento estatístico do canal e do ruído para produzir estimativas mais precisas, ao custo de maior complexidade \cite{vanDeBeek1995}. A comparação entre essas técnicas permite compreender o compromisso fundamental entre desempenho e complexidade computacional presente nos sistemas de comunicação práticos.
+
+Para a realização deste estudo, será utilizada a biblioteca \textit{open-source} NVIDIA Sionna \cite{hoydis2022}, uma ferramenta moderna desenvolvida para pesquisa em camada física de sistemas de comunicação. O Sionna oferece uma ampla coleção de módulos pré-implementados que abrangem toda a cadeia de transmissão e recepção — incluindo codificação de canal LDPC conforme o padrão 5G NR, modulação QAM, construção de grades de recursos OFDM, modelos de canal estocásticos e algoritmos de estimativa e equalização. Construída sobre o \textit{framework} TensorFlow, a biblioteca permite a execução acelerada por GPU e é acompanhada de documentação e tutoriais detalhados \cite{sionna_doc}, tornando-a uma plataforma adequada tanto para fins de pesquisa quanto para o aprendizado prático dos conceitos da disciplina.
+
+O objetivo deste trabalho é investigar e comparar, por meio de simulações numéricas, o desempenho de técnicas de estimativa de canal baseadas em preâmbulo em um sistema OFDM. Especificamente, serão implementados e avaliados os estimadores LS e LMMSE utilizando os recursos da biblioteca Sionna, variando-se parâmetros como a relação sinal-ruído ($E_b/N_0$), a ordem de modulação (QPSK, 16-QAM) e o modelo de canal (AWGN e canais com desvanecimento). Os resultados serão apresentados em termos de curvas de BER e de erro quadrático médio (MSE) da estimativa, permitindo uma análise quantitativa do ganho obtido pela técnica LMMSE em relação à LS sob diferentes condições operacionais. Espera-se que os experimentos realizados consolidem a compreensão teórica dos conceitos de comunicações sem fio estudados na disciplina, ao mesmo tempo em que demonstrem a aplicabilidade de ferramentas computacionais modernas na avaliação de sistemas de comunicação.
+
+O restante deste artigo está organizado da seguinte forma: a Seção~II apresentará a fundamentação teórica sobre OFDM, modelos de canal e técnicas de estimativa. A Seção~III descreverá os materiais e métodos utilizados, incluindo os parâmetros das simulações e o ambiente computacional. A Seção~IV apresentará os resultados obtidos e a respectiva discussão. Por fim, a Seção~V trará as conclusões e indicações de trabalhos futuros.
+
+% ============================================
+% SEÇÕES FUTURAS (placeholders para próximas etapas)
+% ============================================
+% \section{Fundamentação Teórica}
+% A ser preenchido na Etapa 3.
+
+% \section{Materiais e Métodos}
+% A ser preenchido na Etapa 2.
+
+% \section{Resultados e Discussão}
+% A ser preenchido na Etapa 4.
+
+% \section{Conclusão}
+% A ser preenchido na Etapa 4.
+
+% ============================================
+% REFERÊNCIAS
+% ============================================
+\begin{thebibliography}{00}
+
+\bibitem{hoydis2022}
+J.~Hoydis, S.~Cammerer, F.~Ait~Aoudia, A.~Vem, N.~Binder, G.~Marcus e A.~Keller, ``Sionna: An Open-Source Library for Next-Generation Physical Layer Research,'' \textit{arXiv preprint arXiv:2203.11854}, 2022. Disponível em: \url{https://arxiv.org/abs/2203.11854}.
+
+\bibitem{proakis2008}
+J.~G.~Proakis e M.~Salehi, \textit{Digital Communications}, 5ª~ed. Nova York, EUA: McGraw-Hill, 2008.
+
+\bibitem{goldsmith2005}
+A.~Goldsmith, \textit{Wireless Communications}. Cambridge, Reino Unido: Cambridge University Press, 2005.
+
+\bibitem{haykin2001}
+S.~Haykin, \textit{Communication Systems}, 4ª~ed. Nova York, EUA: John Wiley \& Sons, 2001.
+
+\bibitem{vanDeBeek1995}
+J.-J.~van~de~Beek, O.~Edfors, M.~Sandell, S.~K.~Wilson e P.~O.~Börjesson, ``On channel estimation in OFDM systems,'' in \textit{Proc. IEEE 45th Vehicular Technology Conference (VTC)}, vol.~2, Chicago, EUA, jul. 1995, pp.~815--819.
+
+\bibitem{3gpp38211}
+3GPP, ``NR; Physical channels and modulation,'' 3rd Generation Partnership Project, Technical Specification TS~38.211, 2023.
+
+\bibitem{sionna_doc}
+NVIDIA, ``Sionna: An Open-Source Library for Next-Generation Physical Layer Research --- Documentation,'' 2024. Disponível em: \url{https://nvlabs.github.io/sionna/}.
+
+\bibitem{richardson2008}
+T.~Richardson e R.~Urbanke, \textit{Modern Coding Theory}. Cambridge, Reino Unido: Cambridge University Press, 2008.
+
+\end{thebibliography}
+
+\end{document}

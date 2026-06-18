@@ -1,0 +1,268 @@
+\documentclass[conference]{IEEEtran}
+
+% ============================================
+% PACOTES
+% ============================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{booktabs}
+
+\begin{document}
+
+% ============================================
+% TÍTULO
+% ============================================
+\title{Estimativa de Canal Usando Preâmbulo OFDM: Um Estudo Baseado em Simulações com a Biblioteca NVIDIA Sionna}
+
+% ============================================
+% AUTORES
+% ============================================
+\author{
+    \IEEEauthorblockN{Maurice Golin Soares dos Santos}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+    \and
+    \IEEEauthorblockN{Vinicius Pereira Luz}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+    \and
+    \IEEEauthorblockN{Natalia Mendes Goes}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+}
+
+% ============================================
+% CAMPO DO PROFESSOR
+% ============================================
+\IEEEspecialpapernotice{Disciplina: Tópicos em Redes sem Fio \\ Professor: Saulo Jorge Beltrão de Queiroz}
+
+\maketitle
+
+% ============================================
+% RESUMO
+% ============================================
+\begin{abstract}
+Este trabalho propõe um estudo sobre técnicas de estimativa de canal baseadas em preâmbulo em sistemas OFDM (\textit{Orthogonal Frequency-Division Multiplexing}), utilizando a biblioteca de simulação de camada física NVIDIA Sionna. O objetivo é avaliar, por meio de experimentos numéricos, o desempenho de estimadores clássicos como \textit{Least Squares} (LS) e \textit{Linear Minimum Mean Square Error} (LMMSE) sob diferentes condições de canal e níveis de relação sinal-ruído (SNR). Os resultados serão analisados em termos de taxa de erro de bit (BER) e erro quadrático médio (MSE) da estimativa, permitindo uma compreensão prática dos conceitos teóricos abordados na disciplina.
+\end{abstract}
+
+\begin{IEEEkeywords}
+OFDM, estimativa de canal, preâmbulo, Sionna, LS, LMMSE, 5G NR.
+\end{IEEEkeywords}
+
+% ============================================
+% INTRODUÇÃO
+% ============================================
+\section{Introdução}
+
+Os sistemas de comunicação sem fio modernos, incluindo o 4G LTE, o 5G NR e as diversas gerações do padrão Wi-Fi (IEEE 802.11a/n/ac/ax), adotam amplamente a técnica de multiplexação por divisão de frequências ortogonais (OFDM) como esquema de modulação multiportadora \cite{goldsmith2005, proakis2008}. O OFDM divide a banda de transmissão em múltiplas subportadoras ortogonais, conferindo ao sistema elevada eficiência espectral e robustez contra os efeitos de propagação multipercurso, graças à inserção do prefixo cíclico (CP). No entanto, para que o receptor possa realizar a demodulação coerente dos dados recebidos, é imprescindível que a resposta do canal de comunicação seja conhecida com precisão suficiente. Nesse contexto, a estimativa de canal constitui uma das etapas mais críticas da cadeia de recepção em sistemas OFDM, exercendo influência direta sobre o desempenho global do sistema em termos de taxa de erro de bit (BER) \cite{3gpp38211}.
+
+A estimativa de canal baseada em preâmbulo é uma abordagem amplamente empregada em padrões de comunicação reais, na qual símbolos de referência conhecidos pelo receptor --- denominados pilotos --- são inseridos em posições predefinidas da grade de recursos OFDM antes dos dados de usuário \cite{haykin2001}. A partir desses símbolos conhecidos, o receptor aplica algoritmos de estimativa para inferir a resposta em frequência do canal nas demais subportadoras. Duas técnicas clássicas se destacam nesse cenário: o estimador por mínimos quadrados (\textit{Least Squares} --- LS), que oferece baixa complexidade computacional, porém é mais suscetível ao ruído; e o estimador linear de mínimo erro quadrático médio (\textit{Linear Minimum Mean Square Error} --- LMMSE), que incorpora conhecimento estatístico do canal e do ruído para produzir estimativas mais precisas, ao custo de maior complexidade \cite{vanDeBeek1995, edfors1998}. A comparação entre essas técnicas permite compreender o compromisso fundamental entre desempenho e complexidade computacional presente nos sistemas de comunicação práticos.
+
+Para a realização deste estudo, será utilizada a biblioteca \textit{open-source} NVIDIA Sionna \cite{hoydis2022}, uma ferramenta moderna desenvolvida para pesquisa em camada física de sistemas de comunicação. O Sionna oferece uma ampla coleção de módulos pré-implementados que abrangem toda a cadeia de transmissão e recepção --- incluindo codificação de canal LDPC conforme o padrão 5G NR, modulação QAM, construção de grades de recursos OFDM, modelos de canal estocásticos e algoritmos de estimativa e equalização. Construída sobre o \textit{framework} TensorFlow, a biblioteca permite a execução acelerada por GPU e é acompanhada de documentação e tutoriais detalhados \cite{sionna_doc}, tornando-a uma plataforma adequada tanto para fins de pesquisa quanto para o aprendizado prático dos conceitos da disciplina.
+
+O objetivo deste trabalho é investigar e comparar, por meio de simulações numéricas, o desempenho de técnicas de estimativa de canal baseadas em preâmbulo em um sistema OFDM. Especificamente, serão implementados e avaliados os estimadores LS e LMMSE utilizando os recursos da biblioteca Sionna, variando-se parâmetros como a relação sinal-ruído ($E_b/N_0$), a ordem de modulação (QPSK, 16-QAM) e o modelo de canal (AWGN e canais com desvanecimento). Os resultados serão apresentados em termos de curvas de BER e de erro quadrático médio (MSE) da estimativa, permitindo uma análise quantitativa do ganho obtido pela técnica LMMSE em relação à LS sob diferentes condições operacionais. Espera-se que os experimentos realizados consolidem a compreensão teórica dos conceitos de comunicações sem fio estudados na disciplina, ao mesmo tempo em que demonstrem a aplicabilidade de ferramentas computacionais modernas na avaliação de sistemas de comunicação.
+
+O restante deste artigo está organizado da seguinte forma: a Seção~II apresenta a metodologia adotada para o desenvolvimento do trabalho. A Seção~III apresentará a fundamentação teórica sobre OFDM, modelos de canal e técnicas de estimativa. A Seção~IV descreverá os materiais e métodos utilizados, incluindo os parâmetros das simulações e o ambiente computacional. A Seção~V apresentará os resultados obtidos e a respectiva discussão. Por fim, a Seção~VI trará as conclusões e indicações de trabalhos futuros.
+
+% ============================================
+% METODOLOGIA
+% ============================================
+\section{Metodologia}
+
+Esta seção descreve a abordagem metodológica adotada para o desenvolvimento do trabalho, detalhando as etapas de pesquisa, implementação e análise que serão seguidas para atingir os objetivos propostos.
+
+\subsection{Definição do Problema}
+
+O problema central abordado neste trabalho é a \textbf{estimativa de canal em sistemas OFDM a partir de símbolos piloto inseridos no preâmbulo}. Em um sistema de comunicação sem fio real, o sinal transmitido sofre distorções causadas pelo canal de propagação --- incluindo atenuação, desvanecimento (\textit{fading}) e adição de ruído --- que precisam ser compensadas pelo receptor para a correta decodificação dos dados \cite{proakis2008, goldsmith2005}. A qualidade da estimativa de canal impacta diretamente a taxa de erro de bit (BER) do sistema, tornando essa etapa um gargalo de desempenho em sistemas práticos \cite{vanDeBeek1995}.
+
+A questão de pesquisa que orienta este trabalho é: \textit{qual o impacto da escolha do algoritmo de estimativa de canal (LS versus LMMSE) no desempenho de um sistema OFDM, considerando diferentes condições de relação sinal-ruído e modelos de canal?} Essa questão é relevante porque, embora a superioridade teórica do LMMSE sobre o LS seja amplamente documentada na literatura \cite{edfors1998, hsieh1998}, a quantificação prática desse ganho em uma plataforma de simulação moderna como o Sionna permite validar a teoria com resultados reprodutíveis e verificáveis.
+
+\subsection{Abordagem Geral}
+
+A metodologia adotada é de natureza \textbf{experimental-computacional}, baseada em simulações numéricas de Monte Carlo realizadas por meio da biblioteca NVIDIA Sionna \cite{hoydis2022}. A abordagem será composta por quatro fases principais, descritas a seguir e resumidas na Tabela~\ref{tab:fases}.
+
+\begin{table}[htbp]
+\centering
+\caption{Fases da Metodologia}
+\label{tab:fases}
+\begin{tabular}{@{}clp{4.5cm}@{}}
+\toprule
+\textbf{Fase} & \textbf{Descrição} & \textbf{Resultado Esperado} \\
+\midrule
+1 & Revisão bibliográfica & Fundamentação teórica consolidada \\
+2 & Implementação & Scripts de simulação funcionais \\
+3 & Execução e coleta & Dados de BER e MSE por cenário \\
+4 & Análise e redação & Gráficos, tabelas e artigo final \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Fase 1 --- Revisão Bibliográfica e Estudo da Ferramenta}
+
+A primeira fase consiste em uma pesquisa bibliográfica dirigida, combinando o estudo de referências teóricas clássicas com o aprendizado prático da ferramenta Sionna. As ações específicas desta fase são:
+
+\begin{enumerate}
+    \item \textbf{Estudo dos fundamentos de OFDM e estimativa de canal:} Será realizada uma revisão dos conceitos teóricos a partir das obras de Proakis e Salehi \cite{proakis2008} e Goldsmith \cite{goldsmith2005}, com foco nos capítulos sobre modulação multiportadora, modelos de canal e técnicas de estimativa. O artigo seminal de van de Beek et al. \cite{vanDeBeek1995}, que introduz os estimadores LS e LMMSE para sistemas OFDM, será estudado em profundidade, assim como o trabalho posterior de Edfors et al. \cite{edfors1998}, que propõe a redução de complexidade do LMMSE via decomposição em valores singulares (SVD).
+
+    \item \textbf{Estudo da formulação matemática dos estimadores:} O estimador LS calcula a resposta do canal nas posições piloto como $\hat{H}_{\text{LS}} = Y_p / X_p$, onde $Y_p$ são os símbolos recebidos e $X_p$ são os pilotos conhecidos. O estimador LMMSE é dado por $\hat{H}_{\text{LMMSE}} = R_{HH}(R_{HH} + \frac{\sigma_n^2}{\sigma_x^2}I)^{-1}\hat{H}_{\text{LS}}$, onde $R_{HH}$ é a matriz de autocorrelação do canal \cite{vanDeBeek1995, edfors1998}. Essas formulações serão estudadas e verificadas experimentalmente.
+
+    \item \textbf{Estudo da biblioteca Sionna:} Serão estudados os tutoriais oficiais disponíveis no repositório GitHub do Sionna \cite{sionna_doc, sionna_github}, em particular o notebook \texttt{Neural\_Receiver.ipynb}, que demonstra a construção de um sistema OFDM completo com estimação de canal LS e LMMSE como \textit{baselines}. A documentação da API será consultada para compreender as classes \texttt{ResourceGrid}, \texttt{PilotPattern}, \texttt{LSChannelEstimator}, \texttt{OFDMModulator} e \texttt{OFDMDemodulator}.
+
+    \item \textbf{Revisão de trabalhos relacionados:} Será investigada a literatura recente sobre aplicações do Sionna em pesquisas de camada física, incluindo trabalhos que utilizam a ferramenta para avaliação de estimadores de canal \cite{cammerer2023, aoudia2024}. Adicionalmente, o trabalho de Hsieh e Wei \cite{hsieh1998} sobre estimação de canal em OFDM com canais seletivos em frequência e o padrão 3GPP TS~38.211 \cite{3gpp38211} para os sinais de referência de demodulação (DMRS) do 5G NR serão consultados.
+\end{enumerate}
+
+\subsection{Fase 2 --- Implementação do Sistema de Simulação}
+
+A segunda fase consiste na implementação computacional do sistema OFDM com estimativa de canal, utilizando Python e a biblioteca Sionna. A implementação seguirá uma abordagem modular, na qual cada bloco da cadeia de comunicação será construído e validado individualmente antes da integração. As ações desta fase são:
+
+\begin{enumerate}
+    \item \textbf{Configuração do ambiente:} Será configurado um ambiente de desenvolvimento com Python~3.10+, TensorFlow~2.x e Sionna (versão mais recente disponível). O ambiente será preparado tanto para execução local (quando possível com GPU) quanto para execução no Google Colab \cite{sionna_doc}.
+
+    \item \textbf{Construção do transmissor:} O transmissor será implementado utilizando os módulos do Sionna, incluindo: geração de bits aleatórios (\texttt{BinarySource}), codificação de canal LDPC 5G NR (\texttt{LDPC5GEncoder}), mapeamento QAM (\texttt{Mapper}), inserção de pilotos na grade de recursos OFDM (\texttt{ResourceGridMapper}) e modulação OFDM via IFFT com inserção de prefixo cíclico (\texttt{OFDMModulator}).
+
+    \item \textbf{Configuração do canal:} Serão configurados dois modelos de canal para avaliação:
+    \begin{itemize}
+        \item \textbf{Canal AWGN:} modelo ideal que adiciona apenas ruído gaussiano branco, servindo como caso base e referência teórica \cite{proakis2008};
+        \item \textbf{Canal com desvanecimento:} utilizando os modelos de canal padronizados 3GPP CDL (\textit{Clustered Delay Line}) disponíveis no Sionna, que simulam condições de multipercurso realistas \cite{3gpp38211, 3gpp38901}.
+    \end{itemize}
+
+    \item \textbf{Construção do receptor:} O receptor será implementado em duas variantes, correspondentes aos dois estimadores sob avaliação:
+    \begin{itemize}
+        \item \textbf{Receptor com estimador LS:} utilizando a classe \texttt{LSChannelEstimator} do Sionna com interpolação por vizinho mais próximo (\textit{nearest-neighbor}) para estimar o canal em todas as subportadoras a partir das estimativas nas posições piloto;
+        \item \textbf{Receptor com estimador LMMSE:} utilizando a classe \texttt{LMMSEEqualizer} ou implementação equivalente que incorpora a matriz de autocorrelação do canal para refinar as estimativas LS.
+    \end{itemize}
+    Ambos os receptores compartilharão os demais blocos: demodulação OFDM (\texttt{OFDMDemodulator}), demapeamento QAM (\texttt{Demapper}) e decodificação LDPC (\texttt{LDPC5GDecoder}).
+
+    \item \textbf{Validação individual dos blocos:} Cada bloco será testado isoladamente para verificar seu funcionamento correto antes da integração. Por exemplo, será verificado que o mapeador e demapeador QAM produzem a constelação esperada, e que o codificador/decodificador LDPC recupera os bits originais em condição de canal ideal (SNR muito alto).
+\end{enumerate}
+
+\subsection{Fase 3 --- Execução dos Experimentos}
+
+A terceira fase consiste na execução sistemática das simulações, variando os parâmetros do sistema para cobrir os cenários de interesse. Serão definidos os seguintes cenários experimentais:
+
+\begin{enumerate}
+    \item \textbf{Cenário A --- Comparação LS vs. LMMSE em canal AWGN:} Variação da relação $E_b/N_0$ de 0 a 20~dB em passos de 2~dB, com modulação 16-QAM e codificação LDPC com taxa 1/2. Métricas coletadas: BER e MSE da estimativa de canal.
+
+    \item \textbf{Cenário B --- Comparação LS vs. LMMSE em canal com desvanecimento:} Mesmos parâmetros do Cenário A, porém utilizando o modelo de canal CDL-C do 3GPP \cite{3gpp38901}. Este cenário permite observar o impacto do canal seletivo em frequência sobre os estimadores.
+
+    \item \textbf{Cenário C --- Impacto da ordem de modulação:} Comparação entre QPSK e 16-QAM com o estimador LS, variando $E_b/N_0$, para avaliar como a ordem de modulação afeta a qualidade da estimativa e o BER resultante.
+
+    \item \textbf{Cenário D --- MSE da estimativa de canal:} Avaliação isolada do erro quadrático médio ($\text{MSE} = \mathbb{E}[|H - \hat{H}|^2]$) dos estimadores LS e LMMSE em função do SNR, comparando com os limites teóricos derivados em \cite{vanDeBeek1995, edfors1998}.
+\end{enumerate}
+
+Para cada cenário, as simulações serão executadas com um número de amostras (\textit{batch size}) suficiente para garantir significância estatística, seguindo a prática de simulações de Monte Carlo \cite{proakis2008}. Valores típicos de \textit{batch size} entre 1024 e 4096 serão utilizados, com múltiplas repetições para obter curvas suaves de BER.
+
+\subsection{Fase 4 --- Análise dos Resultados e Redação}
+
+A quarta e última fase compreende a análise dos dados coletados e a produção do artigo final. As ações previstas são:
+
+\begin{enumerate}
+    \item \textbf{Geração de gráficos:} Serão produzidos gráficos de BER~$\times$~$E_b/N_0$ e MSE~$\times$~SNR utilizando a biblioteca Matplotlib \cite{matplotlib}, com formatação adequada para publicação em formato IEEE. Os gráficos incluirão curvas comparativas entre os estimadores LS e LMMSE, além de referências a valores teóricos quando aplicável.
+
+    \item \textbf{Análise quantitativa:} Os resultados serão analisados em termos do ganho de SNR proporcionado pelo LMMSE em relação ao LS para um dado nível de BER alvo (por exemplo, $\text{BER} = 10^{-3}$), conforme metodologia empregada em \cite{edfors1998}. Serão também discutidos os compromissos entre desempenho e complexidade computacional.
+
+    \item \textbf{Comparação com a literatura:} Os resultados obtidos via Sionna serão comparados com os resultados teóricos e experimentais reportados na literatura, em particular com os dados apresentados em \cite{vanDeBeek1995, edfors1998, hsieh1998}.
+
+    \item \textbf{Redação do artigo:} O artigo final será redigido seguindo o template IEEE, incorporando todas as seções previstas: introdução, metodologia, fundamentação teórica, materiais e métodos, resultados e discussão, e conclusão.
+\end{enumerate}
+
+\subsection{Ferramentas Utilizadas}
+
+A Tabela~\ref{tab:ferramentas} resume as principais ferramentas e tecnologias que serão utilizadas no desenvolvimento do trabalho.
+
+\begin{table}[htbp]
+\centering
+\caption{Ferramentas e Tecnologias}
+\label{tab:ferramentas}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Ferramenta} & \textbf{Finalidade} \\
+\midrule
+Python 3.10+ & Linguagem de programação \\
+NVIDIA Sionna & Simulação de camada física \\
+TensorFlow 2.x & Backend computacional do Sionna \\
+NumPy & Manipulação numérica \\
+Matplotlib & Geração de gráficos \\
+Google Colab & Ambiente de execução com GPU \\
+\LaTeX{} (IEEEtran) & Redação do artigo \\
+Git / GitHub & Controle de versão \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================
+% SEÇÕES FUTURAS (placeholders para próximas etapas)
+% ============================================
+% \section{Fundamentação Teórica}
+% A ser preenchido na Etapa 3.
+
+% \section{Materiais e Métodos}
+% A ser preenchido na Etapa 3.
+
+% \section{Resultados e Discussão}
+% A ser preenchido na Etapa 4.
+
+% \section{Conclusão}
+% A ser preenchido na Etapa 4.
+
+% ============================================
+% REFERÊNCIAS
+% ============================================
+\begin{thebibliography}{00}
+
+\bibitem{hoydis2022}
+J.~Hoydis, S.~Cammerer, F.~Ait~Aoudia, A.~Vem, N.~Binder, G.~Marcus e A.~Keller, ``Sionna: An Open-Source Library for Next-Generation Physical Layer Research,'' \textit{arXiv preprint arXiv:2203.11854}, 2022. Disponível em: \url{https://arxiv.org/abs/2203.11854}.
+
+\bibitem{proakis2008}
+J.~G.~Proakis e M.~Salehi, \textit{Digital Communications}, 5ª~ed. Nova York, EUA: McGraw-Hill, 2008.
+
+\bibitem{goldsmith2005}
+A.~Goldsmith, \textit{Wireless Communications}. Cambridge, Reino Unido: Cambridge University Press, 2005.
+
+\bibitem{haykin2001}
+S.~Haykin, \textit{Communication Systems}, 4ª~ed. Nova York, EUA: John Wiley \& Sons, 2001.
+
+\bibitem{vanDeBeek1995}
+J.-J.~van~de~Beek, O.~Edfors, M.~Sandell, S.~K.~Wilson e P.~O.~Börjesson, ``On channel estimation in OFDM systems,'' in \textit{Proc. IEEE 45th Vehicular Technology Conference (VTC)}, vol.~2, Chicago, EUA, jul. 1995, pp.~815--819.
+
+\bibitem{edfors1998}
+O.~Edfors, M.~Sandell, J.-J.~van~de~Beek, S.~K.~Wilson e P.~O.~Börjesson, ``OFDM channel estimation by singular value decomposition,'' \textit{IEEE Transactions on Communications}, vol.~46, no.~7, pp.~931--939, jul. 1998.
+
+\bibitem{3gpp38211}
+3GPP, ``NR; Physical channels and modulation,'' 3rd Generation Partnership Project, Technical Specification TS~38.211, 2023.
+
+\bibitem{3gpp38901}
+3GPP, ``Study on channel model for frequencies from 0.5 to 100~GHz,'' 3rd Generation Partnership Project, Technical Report TR~38.901, v17.0.0, 2022.
+
+\bibitem{sionna_doc}
+NVIDIA, ``Sionna: An Open-Source Library for Next-Generation Physical Layer Research --- Documentation,'' 2024. Disponível em: \url{https://nvlabs.github.io/sionna/}.
+
+\bibitem{sionna_github}
+NVIDIA, ``Sionna --- GitHub Repository,'' 2024. Disponível em: \url{https://github.com/NVlabs/sionna}.
+
+\bibitem{richardson2008}
+T.~Richardson e R.~Urbanke, \textit{Modern Coding Theory}. Cambridge, Reino Unido: Cambridge University Press, 2008.
+
+\bibitem{hsieh1998}
+M.-H.~Hsieh e C.-H.~Wei, ``Channel estimation for OFDM systems based on comb-type pilot arrangement in frequency selective fading channels,'' \textit{IEEE Transactions on Consumer Electronics}, vol.~44, no.~1, pp.~217--225, fev. 1998.
+
+\bibitem{cammerer2023}
+S.~Cammerer, F.~Ait~Aoudia, J.~Hoydis, A.~Vem, N.~Binder e A.~Keller, ``Trainable Communication Systems: Concepts and Prototype,'' \textit{IEEE Transactions on Communications}, vol.~71, no.~12, pp.~7328--7342, dez. 2023.
+
+\bibitem{aoudia2024}
+F.~Ait~Aoudia e J.~Hoydis, ``Sionna RT: Differentiable Ray Tracing for Radio Propagation Modeling,'' \textit{arXiv preprint arXiv:2303.11103}, 2023.
+
+\bibitem{matplotlib}
+J.~D.~Hunter, ``Matplotlib: A 2D graphics environment,'' \textit{Computing in Science \& Engineering}, vol.~9, no.~3, pp.~90--95, 2007.
+
+\end{thebibliography}
+
+\end{document}
