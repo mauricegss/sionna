@@ -1,0 +1,1072 @@
+\documentclass[conference]{IEEEtran}
+
+% ============================================
+% PACOTES
+% ============================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{patterns, arrows.meta, positioning, calc, decorations.pathreplacing}
+
+\begin{document}
+
+% ============================================
+% TÍTULO
+% ============================================
+\title{Estimativa de Canal Usando Preâmbulo OFDM: Um Estudo Baseado em Simulações com a Biblioteca NVIDIA Sionna}
+
+% ============================================
+% AUTORES
+% ============================================
+\author{
+    \IEEEauthorblockN{Maurice Golin Soares dos Santos}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+    \and
+    \IEEEauthorblockN{Vinicius Pereira Luz}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+    \and
+    \IEEEauthorblockN{Natalia Mendes Goes}
+    \IEEEauthorblockA{Universidade Tecnológica Federal do Paraná (UTFPR) \\
+    Ponta Grossa, PR, Brasil}
+}
+
+% ============================================
+% CAMPO DO PROFESSOR
+% ============================================
+\IEEEspecialpapernotice{Disciplina: Tópicos em Redes sem Fio \\ Professor: Saulo Jorge Beltrão de Queiroz}
+
+\maketitle
+
+% ============================================
+% RESUMO
+% ============================================
+\begin{abstract}
+Este trabalho propõe um estudo sobre técnicas de estimativa de canal baseadas em preâmbulo em sistemas OFDM (\textit{Orthogonal Frequency-Division Multiplexing}), utilizando a biblioteca de simulação de camada física NVIDIA Sionna. O objetivo é avaliar, por meio de experimentos numéricos, o desempenho de estimadores clássicos como \textit{Least Squares} (LS) e \textit{Linear Minimum Mean Square Error} (LMMSE) sob diferentes condições de canal e níveis de relação sinal-ruído (SNR). Os resultados serão analisados em termos de taxa de erro de bit (BER) e erro quadrático médio (MSE) da estimativa, permitindo uma compreensão prática dos conceitos teóricos abordados na disciplina.
+\end{abstract}
+
+\begin{IEEEkeywords}
+OFDM, estimativa de canal, preâmbulo, Sionna, LS, LMMSE, 5G NR.
+\end{IEEEkeywords}
+
+% ============================================
+% INTRODUÇÃO
+% ============================================
+\section{Introdução}
+
+Os sistemas de comunicação sem fio modernos, incluindo o 4G LTE, o 5G NR e as diversas gerações do padrão Wi-Fi (IEEE 802.11a/n/ac/ax), adotam amplamente a técnica de multiplexação por divisão de frequências ortogonais (OFDM) como esquema de modulação multiportadora \cite{goldsmith2005, proakis2008}. O OFDM divide a banda de transmissão em múltiplas subportadoras ortogonais, conferindo ao sistema elevada eficiência espectral e robustez contra os efeitos de propagação multipercurso, graças à inserção do prefixo cíclico (CP). No entanto, para que o receptor possa realizar a demodulação coerente dos dados recebidos, é imprescindível que a resposta do canal de comunicação seja conhecida com precisão suficiente. Nesse contexto, a estimativa de canal constitui uma das etapas mais críticas da cadeia de recepção em sistemas OFDM, exercendo influência direta sobre o desempenho global do sistema em termos de taxa de erro de bit (BER) \cite{3gpp38211}.
+
+A estimativa de canal baseada em preâmbulo é uma abordagem amplamente empregada em padrões de comunicação reais, na qual símbolos de referência conhecidos pelo receptor --- denominados pilotos --- são inseridos em posições predefinidas da grade de recursos OFDM antes dos dados de usuário \cite{haykin2001}. A partir desses símbolos conhecidos, o receptor aplica algoritmos de estimativa para inferir a resposta em frequência do canal nas demais subportadoras. Duas técnicas clássicas se destacam nesse cenário: o estimador por mínimos quadrados (\textit{Least Squares} --- LS), que oferece baixa complexidade computacional, porém é mais suscetível ao ruído; e o estimador linear de mínimo erro quadrático médio (\textit{Linear Minimum Mean Square Error} --- LMMSE), que incorpora conhecimento estatístico do canal e do ruído para produzir estimativas mais precisas, ao custo de maior complexidade \cite{vanDeBeek1995, edfors1998}. A comparação entre essas técnicas permite compreender o compromisso fundamental entre desempenho e complexidade computacional presente nos sistemas de comunicação práticos.
+
+Para a realização deste estudo, será utilizada a biblioteca \textit{open-source} NVIDIA Sionna \cite{hoydis2022}, uma ferramenta moderna desenvolvida para pesquisa em camada física de sistemas de comunicação. O Sionna oferece uma ampla coleção de módulos pré-implementados que abrangem toda a cadeia de transmissão e recepção --- incluindo codificação de canal LDPC conforme o padrão 5G NR, modulação QAM, construção de grades de recursos OFDM, modelos de canal estocásticos e algoritmos de estimativa e equalização. Construída sobre o \textit{framework} TensorFlow, a biblioteca permite a execução acelerada por GPU e é acompanhada de documentação e tutoriais detalhados \cite{sionna_doc}, tornando-a uma plataforma adequada tanto para fins de pesquisa quanto para o aprendizado prático dos conceitos da disciplina.
+
+O objetivo deste trabalho é investigar e comparar, por meio de simulações numéricas, o desempenho de técnicas de estimativa de canal baseadas em preâmbulo em um sistema OFDM. Especificamente, serão implementados e avaliados os estimadores LS e LMMSE utilizando os recursos da biblioteca Sionna, variando-se parâmetros como a relação sinal-ruído ($E_b/N_0$), a ordem de modulação (QPSK, 16-QAM) e o modelo de canal (AWGN e canais com desvanecimento). Os resultados serão apresentados em termos de curvas de BER e de erro quadrático médio (MSE) da estimativa, permitindo uma análise quantitativa do ganho obtido pela técnica LMMSE em relação à LS sob diferentes condições operacionais. Espera-se que os experimentos realizados consolidem a compreensão teórica dos conceitos de comunicações sem fio estudados na disciplina, ao mesmo tempo em que demonstrem a aplicabilidade de ferramentas computacionais modernas na avaliação de sistemas de comunicação.
+
+O restante deste artigo está organizado da seguinte forma: a Seção~II apresenta a metodologia adotada para o desenvolvimento do trabalho. A Seção~III apresenta a fundamentação teórica sobre OFDM, modelos de canal e técnicas de estimativa. A Seção~IV descreverá os materiais e métodos utilizados, incluindo os parâmetros das simulações e o ambiente computacional. A Seção~V apresentará os resultados obtidos e a respectiva discussão. Por fim, a Seção~VI trará as conclusões e indicações de trabalhos futuros.
+
+% ============================================
+% METODOLOGIA
+% ============================================
+\section{Metodologia}
+
+Esta seção descreve a abordagem metodológica adotada para o desenvolvimento do trabalho, detalhando as etapas de pesquisa, implementação e análise que serão seguidas para atingir os objetivos propostos.
+
+\subsection{Definição do Problema}
+
+O problema central abordado neste trabalho é a \textbf{estimativa de canal em sistemas OFDM a partir de símbolos piloto inseridos no preâmbulo}. Em um sistema de comunicação sem fio real, o sinal transmitido sofre distorções causadas pelo canal de propagação --- incluindo atenuação, desvanecimento (\textit{fading}) e adição de ruído --- que precisam ser compensadas pelo receptor para a correta decodificação dos dados \cite{proakis2008, goldsmith2005}. A qualidade da estimativa de canal impacta diretamente a taxa de erro de bit (BER) do sistema, tornando essa etapa um gargalo de desempenho em sistemas práticos \cite{vanDeBeek1995}.
+
+A questão de pesquisa que orienta este trabalho é: \textit{qual o impacto da escolha do algoritmo de estimativa de canal (LS versus LMMSE) no desempenho de um sistema OFDM, considerando diferentes condições de relação sinal-ruído e modelos de canal?} Essa questão é relevante porque, embora a superioridade teórica do LMMSE sobre o LS seja amplamente documentada na literatura \cite{edfors1998, hsieh1998}, a quantificação prática desse ganho em uma plataforma de simulação moderna como o Sionna permite validar a teoria com resultados reprodutíveis e verificáveis.
+
+\subsection{Abordagem Geral}
+
+A metodologia adotada é de natureza \textbf{experimental-computacional}, baseada em simulações numéricas de Monte Carlo realizadas por meio da biblioteca NVIDIA Sionna \cite{hoydis2022}. A abordagem será composta por quatro fases principais, descritas a seguir e resumidas na Tabela~\ref{tab:fases}.
+
+\begin{table}[htbp]
+\centering
+\caption{Fases da Metodologia}
+\label{tab:fases}
+\begin{tabular}{@{}clp{4.5cm}@{}}
+\toprule
+\textbf{Fase} & \textbf{Descrição} & \textbf{Resultado Esperado} \\
+\midrule
+1 & Revisão bibliográfica & Fundamentação teórica consolidada \\
+2 & Implementação & Scripts de simulação funcionais \\
+3 & Execução e coleta & Dados de BER e MSE por cenário \\
+4 & Análise e redação & Gráficos, tabelas e artigo final \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Fase 1 --- Revisão Bibliográfica e Estudo da Ferramenta}
+
+A primeira fase consiste em uma pesquisa bibliográfica dirigida, combinando o estudo de referências teóricas clássicas com o aprendizado prático da ferramenta Sionna. As ações específicas desta fase são:
+
+\begin{enumerate}
+    \item \textbf{Estudo dos fundamentos de OFDM e estimativa de canal:} Será realizada uma revisão dos conceitos teóricos a partir das obras de Proakis e Salehi \cite{proakis2008} e Goldsmith \cite{goldsmith2005}, com foco nos capítulos sobre modulação multiportadora, modelos de canal e técnicas de estimativa. O artigo seminal de van de Beek et al. \cite{vanDeBeek1995}, que introduz os estimadores LS e LMMSE para sistemas OFDM, será estudado em profundidade, assim como o trabalho posterior de Edfors et al. \cite{edfors1998}, que propõe a redução de complexidade do LMMSE via decomposição em valores singulares (SVD).
+
+    \item \textbf{Estudo da formulação matemática dos estimadores:} O estimador LS calcula a resposta do canal nas posições piloto como $\hat{H}_{\text{LS}} = Y_p / X_p$, onde $Y_p$ são os símbolos recebidos e $X_p$ são os pilotos conhecidos. O estimador LMMSE é dado por $\hat{H}_{\text{LMMSE}} = R_{HH}(R_{HH} + \frac{\sigma_n^2}{\sigma_x^2}I)^{-1}\hat{H}_{\text{LS}}$, onde $R_{HH}$ é a matriz de autocorrelação do canal \cite{vanDeBeek1995, edfors1998}. Essas formulações serão estudadas e verificadas experimentalmente.
+
+    \item \textbf{Estudo da biblioteca Sionna:} Serão estudados os tutoriais oficiais disponíveis no repositório GitHub do Sionna \cite{sionna_doc, sionna_github}, em particular o notebook \texttt{Neural\_Receiver.ipynb}, que demonstra a construção de um sistema OFDM completo com estimação de canal LS e LMMSE como \textit{baselines}. A documentação da API será consultada para compreender as classes \texttt{ResourceGrid}, \texttt{PilotPattern}, \texttt{LSChannelEstimator}, \texttt{OFDMModulator} e \texttt{OFDMDemodulator}.
+
+    \item \textbf{Revisão de trabalhos relacionados:} Será investigada a literatura recente sobre aplicações do Sionna em pesquisas de camada física, incluindo trabalhos que utilizam a ferramenta para avaliação de estimadores de canal \cite{cammerer2023, aoudia2024}. Adicionalmente, o trabalho de Hsieh e Wei \cite{hsieh1998} sobre estimação de canal em OFDM com canais seletivos em frequência e o padrão 3GPP TS~38.211 \cite{3gpp38211} para os sinais de referência de demodulação (DMRS) do 5G NR serão consultados.
+\end{enumerate}
+
+\subsection{Fase 2 --- Implementação do Sistema de Simulação}
+
+A segunda fase consiste na implementação computacional do sistema OFDM com estimativa de canal, utilizando Python e a biblioteca Sionna. A implementação seguirá uma abordagem modular, na qual cada bloco da cadeia de comunicação será construído e validado individualmente antes da integração. As ações desta fase são:
+
+\begin{enumerate}
+    \item \textbf{Configuração do ambiente:} Será configurado um ambiente de desenvolvimento com Python~3.10+, TensorFlow~2.x e Sionna (versão mais recente disponível). O ambiente será preparado tanto para execução local (quando possível com GPU) quanto para execução no Google Colab \cite{sionna_doc}.
+
+    \item \textbf{Construção do transmissor:} O transmissor será implementado utilizando os módulos do Sionna, incluindo: geração de bits aleatórios (\texttt{BinarySource}), codificação de canal LDPC 5G NR (\texttt{LDPC5GEncoder}), mapeamento QAM (\texttt{Mapper}), inserção de pilotos na grade de recursos OFDM (\texttt{ResourceGridMapper}) e modulação OFDM via IFFT com inserção de prefixo cíclico (\texttt{OFDMModulator}).
+
+    \item \textbf{Configuração do canal:} Serão configurados dois modelos de canal para avaliação:
+    \begin{itemize}
+        \item \textbf{Canal AWGN:} modelo ideal que adiciona apenas ruído gaussiano branco, servindo como caso base e referência teórica \cite{proakis2008};
+        \item \textbf{Canal com desvanecimento:} utilizando os modelos de canal padronizados 3GPP CDL (\textit{Clustered Delay Line}) disponíveis no Sionna, que simulam condições de multipercurso realistas \cite{3gpp38211, 3gpp38901}.
+    \end{itemize}
+
+    \item \textbf{Construção do receptor:} O receptor será implementado em duas variantes, correspondentes aos dois estimadores sob avaliação:
+    \begin{itemize}
+        \item \textbf{Receptor com estimador LS:} utilizando a classe \texttt{LSChannelEstimator} do Sionna com interpolação por vizinho mais próximo (\textit{nearest-neighbor}) para estimar o canal em todas as subportadoras a partir das estimativas nas posições piloto;
+        \item \textbf{Receptor com estimador LMMSE:} utilizando a classe \texttt{LMMSEEqualizer} ou implementação equivalente que incorpora a matriz de autocorrelação do canal para refinar as estimativas LS.
+    \end{itemize}
+    Ambos os receptores compartilharão os demais blocos: demodulação OFDM (\texttt{OFDMDemodulator}), demapeamento QAM (\texttt{Demapper}) e decodificação LDPC (\texttt{LDPC5GDecoder}).
+
+    \item \textbf{Validação individual dos blocos:} Cada bloco será testado isoladamente para verificar seu funcionamento correto antes da integração. Por exemplo, será verificado que o mapeador e demapeador QAM produzem a constelação esperada, e que o codificador/decodificador LDPC recupera os bits originais em condição de canal ideal (SNR muito alto).
+\end{enumerate}
+
+\subsection{Fase 3 --- Execução dos Experimentos}
+
+A terceira fase consiste na execução sistemática das simulações, variando os parâmetros do sistema para cobrir os cenários de interesse. Serão definidos os seguintes cenários experimentais:
+
+\begin{enumerate}
+    \item \textbf{Cenário A --- Comparação LS vs. LMMSE em canal AWGN:} Variação da relação $E_b/N_0$ de 0 a 20~dB em passos de 2~dB, com modulação 16-QAM e codificação LDPC com taxa 1/2. Métricas coletadas: BER e MSE da estimativa de canal.
+
+    \item \textbf{Cenário B --- Comparação LS vs. LMMSE em canal com desvanecimento:} Mesmos parâmetros do Cenário A, porém utilizando o modelo de canal CDL-C do 3GPP \cite{3gpp38901}. Este cenário permite observar o impacto do canal seletivo em frequência sobre os estimadores.
+
+    \item \textbf{Cenário C --- Impacto da ordem de modulação:} Comparação entre QPSK e 16-QAM com o estimador LS, variando $E_b/N_0$, para avaliar como a ordem de modulação afeta a qualidade da estimativa e o BER resultante.
+
+    \item \textbf{Cenário D --- MSE da estimativa de canal:} Avaliação isolada do erro quadrático médio ($\text{MSE} = \mathbb{E}[|H - \hat{H}|^2]$) dos estimadores LS e LMMSE em função do SNR, comparando com os limites teóricos derivados em \cite{vanDeBeek1995, edfors1998}.
+\end{enumerate}
+
+Para cada cenário, as simulações serão executadas com um número de amostras (\textit{batch size}) suficiente para garantir significância estatística, seguindo a prática de simulações de Monte Carlo \cite{proakis2008}. Valores típicos de \textit{batch size} entre 1024 e 4096 serão utilizados, com múltiplas repetições para obter curvas suaves de BER.
+
+\subsection{Fase 4 --- Análise dos Resultados e Redação}
+
+A quarta e última fase compreende a análise dos dados coletados e a produção do artigo final. As ações previstas são:
+
+\begin{enumerate}
+    \item \textbf{Geração de gráficos:} Serão produzidos gráficos de BER~$\times$~$E_b/N_0$ e MSE~$\times$~SNR utilizando a biblioteca Matplotlib \cite{matplotlib}, com formatação adequada para publicação em formato IEEE. Os gráficos incluirão curvas comparativas entre os estimadores LS e LMMSE, além de referências a valores teóricos quando aplicável.
+
+    \item \textbf{Análise quantitativa:} Os resultados serão analisados em termos do ganho de SNR proporcionado pelo LMMSE em relação ao LS para um dado nível de BER alvo (por exemplo, $\text{BER} = 10^{-3}$), conforme metodologia empregada em \cite{edfors1998}. Serão também discutidos os compromissos entre desempenho e complexidade computacional.
+
+    \item \textbf{Comparação com a literatura:} Os resultados obtidos via Sionna serão comparados com os resultados teóricos e experimentais reportados na literatura, em particular com os dados apresentados em \cite{vanDeBeek1995, edfors1998, hsieh1998}.
+
+    \item \textbf{Redação do artigo:} O artigo final será redigido seguindo o template IEEE, incorporando todas as seções previstas: introdução, metodologia, fundamentação teórica, materiais e métodos, resultados e discussão, e conclusão.
+\end{enumerate}
+
+\subsection{Ferramentas Utilizadas}
+
+A Tabela~\ref{tab:ferramentas} resume as principais ferramentas e tecnologias que serão utilizadas no desenvolvimento do trabalho.
+
+\begin{table}[htbp]
+\centering
+\caption{Ferramentas e Tecnologias}
+\label{tab:ferramentas}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Ferramenta} & \textbf{Finalidade} \\
+\midrule
+Python 3.10+ & Linguagem de programação \\
+NVIDIA Sionna & Simulação de camada física \\
+TensorFlow 2.x & Backend computacional do Sionna \\
+NumPy & Manipulação numérica \\
+Matplotlib & Geração de gráficos \\
+Google Colab & Ambiente de execução com GPU \\
+\LaTeX{} (IEEEtran) & Redação do artigo \\
+Git / GitHub & Controle de versão \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================
+% FUNDAMENTAÇÃO TEÓRICA (NOVO - ETAPA 3)
+% ============================================
+\section{Fundamentação Teórica}
+
+Esta seção apresenta os conceitos teóricos que fundamentam o trabalho proposto. Inicialmente, são revisados os princípios do OFDM e seu modelo matemático no domínio da frequência. Em seguida, discutem-se os modelos de canal sem fio utilizados nas simulações. Posteriormente, são derivados e comparados os estimadores de canal LS e LMMSE. Por fim, é apresentada a arquitetura da biblioteca Sionna e sua cadeia de processamento OFDM.
+
+\subsection{Princípios do OFDM}
+
+A multiplexação por divisão de frequências ortogonais (OFDM) é uma técnica de modulação multiportadora que transmite dados simultaneamente em múltiplas subportadoras ortogonais entre si \cite{goldsmith2005, proakis2008}. A ideia central do OFDM consiste em converter um canal de banda larga seletivo em frequência em $N$ subcanais paralelos de banda estreita, cada um experimentando desvanecimento aproximadamente plano (\textit{flat fading}). Essa propriedade simplifica significativamente o processo de equalização no receptor.
+
+\subsubsection{Geração do Sinal OFDM}
+
+No transmissor, um bloco de $N$ símbolos de dados complexos $\{X[k]\}_{k=0}^{N-1}$, provenientes de um esquema de modulação digital (e.g., QPSK, 16-QAM), é mapeado nas $N$ subportadoras ortogonais. O sinal discreto no domínio do tempo é obtido pela Transformada Discreta de Fourier Inversa (IDFT):
+\begin{equation}
+    x[n] = \frac{1}{\sqrt{N}} \sum_{k=0}^{N-1} X[k] \, e^{j \frac{2\pi}{N} nk}, \quad n = 0, 1, \ldots, N-1
+    \label{eq:idft}
+\end{equation}
+onde $x[n]$ representa a $n$-ésima amostra temporal do símbolo OFDM e $N$ é o número total de subportadoras (equivalente ao tamanho da FFT). A operação da Eq.~(\ref{eq:idft}) é implementada eficientemente na prática por meio do algoritmo IFFT (\textit{Inverse Fast Fourier Transform}).
+
+\subsubsection{Prefixo Cíclico}
+
+Após a geração do sinal no domínio do tempo, um \textbf{prefixo cíclico} (CP --- \textit{Cyclic Prefix}) de comprimento $N_{\text{CP}}$ amostras é inserido no início de cada símbolo OFDM. O CP consiste na cópia das últimas $N_{\text{CP}}$ amostras do símbolo, criando uma extensão cíclica:
+\begin{equation}
+    x_{\text{CP}}[n] = x\!\left[(n + N - N_{\text{CP}}) \bmod N\right], \quad n = -N_{\text{CP}}, \ldots, N-1
+    \label{eq:cp}
+\end{equation}
+
+O CP desempenha duas funções fundamentais \cite{proakis2008, goldsmith2005}:
+\begin{enumerate}
+    \item \textbf{Eliminação da interferência intersimbólica (ISI):} desde que $N_{\text{CP}} \geq L_h - 1$, onde $L_h$ é o comprimento (em amostras) da resposta ao impulso do canal, o CP absorve toda a dispersão temporal causada pelo multipercurso, garantindo que cada símbolo OFDM recebido contenha contribuições apenas do símbolo atual;
+    \item \textbf{Circularização da convolução:} a extensão cíclica transforma a convolução linear entre o sinal transmitido e a resposta ao impulso do canal em uma \textbf{convolução circular}. Essa propriedade é essencial, pois permite que a relação entrada--saída no domínio da frequência se reduza a uma simples multiplicação ponto a ponto.
+\end{enumerate}
+
+A Fig.~\ref{fig:cp_ofdm} ilustra a estrutura de um símbolo OFDM com prefixo cíclico, destacando a cópia das últimas amostras para o início do símbolo.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[scale=0.85, every node/.style={font=\small}]
+        % Símbolo OFDM original
+        \draw[fill=blue!15, draw=blue!60, thick] (0,0) rectangle (6,1);
+        \node at (3, 0.5) {Símbolo OFDM útil ($N$ amostras)};
+
+        % Prefixo cíclico
+        \draw[fill=orange!25, draw=orange!70, thick] (-2.2,0) rectangle (0,1);
+        \node[align=center] at (-1.1, 0.5) {CP\\($N_{\text{CP}}$)};
+
+        % Seta indicando cópia
+        \draw[-{Stealth}, thick, dashed, red!70] (4.8, -0.3) to[out=-30,in=-150] (-1.1, -0.3);
+        \node[below, red!70, font=\footnotesize] at (1.8, -0.6) {Cópia das últimas $N_{\text{CP}}$ amostras};
+
+        % Região copiada no símbolo original
+        \draw[fill=orange!25, draw=orange!70, thick, pattern=north east lines, pattern color=orange!40] (3.8,0) rectangle (6,1);
+
+        % Delimitadores
+        \draw[{Stealth}-{Stealth}, thick] (-2.2, 1.4) -- (6, 1.4);
+        \node[above] at (1.9, 1.4) {Símbolo OFDM transmitido ($N + N_{\text{CP}}$ amostras)};
+    \end{tikzpicture}
+    \caption{Estrutura de um símbolo OFDM com prefixo cíclico. As últimas $N_{\text{CP}}$ amostras do símbolo útil são copiadas para o início, formando uma extensão cíclica que elimina a ISI e circulariza a convolução com o canal.}
+    \label{fig:cp_ofdm}
+\end{figure}
+
+\subsubsection{Modelo do Sistema no Domínio da Frequência}
+
+Após a transmissão pelo canal sem fio e a remoção do CP no receptor, o sinal recebido é processado pela DFT (\textit{Discrete Fourier Transform}) de $N$ pontos. Graças à propriedade de circularização proporcionada pelo CP, a relação entre os símbolos transmitidos e recebidos no domínio da frequência se torna notavelmente simples \cite{proakis2008}:
+\begin{equation}
+    Y[k] = H[k] \cdot X[k] + W[k], \quad k = 0, 1, \ldots, N-1
+    \label{eq:ofdm_freq}
+\end{equation}
+onde:
+\begin{itemize}
+    \item $Y[k]$ é o símbolo recebido na $k$-ésima subportadora;
+    \item $H[k]$ é a resposta em frequência do canal (\textit{Channel Frequency Response} --- CFR) na $k$-ésima subportadora, obtida pela DFT da resposta ao impulso do canal $h[n]$;
+    \item $X[k]$ é o símbolo transmitido na $k$-ésima subportadora;
+    \item $W[k]$ é a componente de ruído AWGN no domínio da frequência, com variância $\sigma_w^2$.
+\end{itemize}
+
+A Eq.~(\ref{eq:ofdm_freq}) revela a principal vantagem do OFDM: o canal seletivo em frequência é decomposto em $N$ subcanais paralelos independentes, cada um sujeito apenas a um desvanecimento plano escalar $H[k]$. Isso permite que a equalização seja realizada de forma extremamente simples --- como uma divisão escalar por subportadora --- desde que $H[k]$ seja conhecido. Em notação matricial, o modelo pode ser escrito como:
+\begin{equation}
+    \mathbf{Y} = \mathbf{X} \mathbf{H} + \mathbf{W}
+    \label{eq:ofdm_matrix}
+\end{equation}
+onde $\mathbf{X} = \text{diag}(X[0], X[1], \ldots, X[N-1])$ é uma matriz diagonal contendo os símbolos transmitidos, e $\mathbf{Y}$, $\mathbf{H}$, $\mathbf{W}$ são vetores coluna de dimensão $N \times 1$.
+
+A Fig.~\ref{fig:ofdm_block} apresenta o diagrama de blocos simplificado de um sistema OFDM, desde a geração dos símbolos de dados até a recuperação no receptor.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        block/.style={rectangle, draw, fill=blue!10, minimum height=0.8cm, minimum width=1.6cm, align=center, font=\footnotesize, rounded corners=2pt},
+        arrow/.style={-{Stealth}, thick},
+        node distance=0.5cm
+    ]
+        % Transmissor
+        \node[block] (src) {Fonte de\\Bits};
+        \node[block, right=of src] (mod) {Modulação\\QAM};
+        \node[block, right=of mod] (ifft) {IFFT\\($N$ pontos)};
+        \node[block, right=of ifft] (cp) {Inserção\\de CP};
+
+        % Canal
+        \node[block, right=of cp, fill=red!10] (ch) {Canal\\$h[n]$};
+
+        % Receptor
+        \node[block, below=1.2cm of ch, fill=green!10] (rmcp) {Remoção\\de CP};
+        \node[block, left=of rmcp, fill=green!10] (fft) {FFT\\($N$ pontos)};
+        \node[block, left=of fft, fill=green!10] (eq) {Equalização\\$\hat{X}=Y/\hat{H}$};
+        \node[block, left=of eq, fill=green!10] (demod) {Demodu-\\lação};
+
+        % Estimador de canal
+        \node[block, below=0.6cm of fft, fill=yellow!20] (est) {Estimativa\\de Canal};
+
+        % Setas TX
+        \draw[arrow] (src) -- (mod);
+        \draw[arrow] (mod) -- (ifft);
+        \draw[arrow] (ifft) -- (cp);
+        \draw[arrow] (cp) -- (ch);
+
+        % Setas canal -> RX
+        \draw[arrow] (ch) -- (rmcp);
+        \draw[arrow] (rmcp) -- (fft);
+        \draw[arrow] (fft) -- (eq);
+        \draw[arrow] (eq) -- (demod);
+
+        % Seta estimador
+        \draw[arrow] (fft) -- (est);
+        \draw[arrow] (est) -| (eq);
+
+        % Labels
+        \node[above=0.15cm of src, font=\footnotesize\bfseries, blue!70] {Transmissor};
+        \node[below=0.15cm of demod, font=\footnotesize\bfseries, green!50!black] {Receptor};
+    \end{tikzpicture}
+    \caption{Diagrama de blocos simplificado de um sistema OFDM. No transmissor, os bits são modulados, transformados para o domínio do tempo via IFFT e acrescidos de CP. No receptor, após remoção do CP e aplicação da FFT, o canal é estimado a partir dos pilotos e utilizado para equalizar os dados recebidos.}
+    \label{fig:ofdm_block}
+\end{figure}
+
+\subsection{Grade de Recursos OFDM e Símbolos Piloto}
+
+Em sistemas OFDM práticos, os recursos de transmissão são organizados em uma estrutura bidimensional denominada \textbf{grade de recursos} (\textit{resource grid}), que mapeia os símbolos nas dimensões de tempo (símbolos OFDM) e frequência (subportadoras) \cite{3gpp38211}. Cada posição nessa grade é denominada \textbf{elemento de recurso} (RE --- \textit{Resource Element}) e corresponde a uma subportadora em um símbolo OFDM.
+
+\subsubsection{Estrutura da Grade de Recursos no 5G NR}
+
+No padrão 5G NR, a unidade básica de alocação é o \textbf{bloco de recursos} (RB --- \textit{Resource Block}), composto por 12 subportadoras consecutivas \cite{3gpp38211}. Um \textit{slot} típico contém 14 símbolos OFDM. Os elementos de recurso podem carregar três tipos de informação:
+\begin{itemize}
+    \item \textbf{Dados de usuário:} símbolos modulados contendo a informação a ser transmitida;
+    \item \textbf{Símbolos piloto (DMRS):} sinais de referência de demodulação (\textit{Demodulation Reference Signals}), cujos valores são conhecidos \textit{a priori} pelo receptor;
+    \item \textbf{Subportadoras de guarda:} posições não utilizadas nas bordas da banda para reduzir a interferência com canais adjacentes.
+\end{itemize}
+
+\subsubsection{Função dos Símbolos Piloto}
+
+Os símbolos piloto são a peça fundamental para a estimativa de canal no receptor. Como seus valores $X_p[k]$ são conhecidos tanto pelo transmissor quanto pelo receptor, o receptor pode comparar o sinal recebido $Y_p[k]$ nas posições piloto com o valor esperado para inferir o efeito do canal naquelas subportadoras específicas \cite{haykin2001, vanDeBeek1995}. A partir dessas estimativas pontuais, técnicas de interpolação são empregadas para obter a resposta do canal nas subportadoras de dados, onde o valor de $H[k]$ não é diretamente observável.
+
+A distribuição dos pilotos na grade de recursos segue padrões padronizados que buscam otimizar o compromisso entre a precisão da estimativa de canal e a eficiência espectral (quantidade de recursos disponíveis para dados) \cite{3gpp38211}. Existem dois arranjos clássicos:
+\begin{itemize}
+    \item \textbf{Tipo bloco (\textit{block-type}):} todos os pilotos são concentrados em um ou poucos símbolos OFDM dedicados (o preâmbulo), sendo adequado para canais que variam lentamente no tempo;
+    \item \textbf{Tipo pente (\textit{comb-type}):} os pilotos são distribuídos em subportadoras alternadas ao longo de vários símbolos OFDM, sendo mais adequado para canais com variação rápida tanto no tempo quanto na frequência \cite{hsieh1998}.
+\end{itemize}
+
+Neste trabalho, será utilizado o arranjo tipo bloco (preâmbulo), no qual um símbolo OFDM inteiramente composto por pilotos é transmitido antes dos símbolos de dados, conforme indicado na Fig.~\ref{fig:resource_grid}.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[scale=0.48, every node/.style={font=\tiny}]
+        % Definições
+        \def\cols{14}  % Símbolos OFDM (tempo)
+        \def\rows{12}  % Subportadoras (frequência)
+
+        % Grade
+        \foreach \x in {0,...,\cols}{
+            \draw[gray!50] (\x, 0) -- (\x, \rows);
+        }
+        \foreach \y in {0,...,\rows}{
+            \draw[gray!50] (0, \y) -- (\cols, \y);
+        }
+
+        % Preâmbulo (pilotos) - colunas 0 e 1
+        \foreach \y in {0,...,11}{
+            \fill[orange!50] (0, \y) rectangle (1, \y+1);
+            \fill[orange!50] (1, \y) rectangle (2, \y+1);
+        }
+
+        % Dados - colunas 2 a 13
+        \foreach \x in {2,...,13}{
+            \foreach \y in {0,...,11}{
+                \fill[blue!15] (\x, \y) rectangle (\x+1, \y+1);
+            }
+        }
+
+        % DMRS espalhados (pilotos intercalados nos dados)
+        \foreach \y in {0,2,...,10}{
+            \fill[orange!50] (7, \y) rectangle (8, \y+1);
+            \fill[orange!50] (11, \y) rectangle (12, \y+1);
+        }
+
+        % Subportadoras de guarda (topo e base)
+        \foreach \x in {0,...,13}{
+            \fill[gray!25] (\x, 11) rectangle (\x+1, 12);
+            \fill[gray!25] (\x, 0) rectangle (\x+1, 1);
+        }
+
+        % Rótulos dos eixos
+        \node[rotate=90, anchor=south] at (-0.8, 6) {\normalsize Frequência (subportadoras)};
+        \node[anchor=north] at (7, -0.5) {\normalsize Tempo (símbolos OFDM)};
+
+        % Legenda
+        \fill[orange!50] (15.5, 10) rectangle (16.5, 11);
+        \node[right] at (16.7, 10.5) {\small Piloto (DMRS)};
+        \fill[blue!15] (15.5, 8.5) rectangle (16.5, 9.5);
+        \node[right] at (16.7, 9) {\small Dados};
+        \fill[gray!25] (15.5, 7) rectangle (16.5, 8);
+        \node[right] at (16.7, 7.5) {\small Guarda};
+
+        % Indicação do preâmbulo
+        \draw[decorate, decoration={brace, amplitude=5pt, mirror}, thick, red!70] (0, -0.2) -- (2, -0.2);
+        \node[below, red!70, font=\small] at (1, -0.5) {Preâmbulo};
+    \end{tikzpicture}
+    \caption{Representação esquemática de uma grade de recursos OFDM. Os símbolos piloto (DMRS) são inseridos no preâmbulo (primeiros símbolos OFDM) e, opcionalmente, de forma espaçada ao longo da transmissão. Os dados de usuário ocupam as demais posições, enquanto subportadoras de guarda são mantidas nas bordas da banda.}
+    \label{fig:resource_grid}
+\end{figure}
+
+\subsection{Modelos de Canal Sem Fio}
+
+A modelagem adequada do canal de propagação é essencial para a avaliação realista de qualquer técnica de estimativa de canal. Neste trabalho, dois modelos de canal serão utilizados, representando diferentes níveis de complexidade do ambiente de propagação.
+
+\subsubsection{Canal AWGN}
+
+O canal AWGN (\textit{Additive White Gaussian Noise}) é o modelo mais simples, no qual o sinal transmitido sofre apenas a adição de ruído gaussiano branco, sem distorção ou desvanecimento \cite{proakis2008}:
+\begin{equation}
+    y(t) = x(t) + w(t)
+    \label{eq:awgn}
+\end{equation}
+onde $w(t)$ é um processo aleatório gaussiano com média zero e densidade espectral de potência bilateral $N_0/2$. No domínio da frequência de um sistema OFDM, o canal AWGN equivale a $H[k] = 1$ para todas as subportadoras, o que significa que o canal não introduz nenhuma distorção na amplitude ou fase do sinal --- apenas ruído é adicionado. Este modelo serve como referência teórica (\textit{baseline}), permitindo isolar o efeito do ruído sobre o desempenho dos estimadores de canal.
+
+\subsubsection{Canal Multipercurso com Desvanecimento}
+
+Em ambientes reais de propagação sem fio, o sinal transmitido percorre múltiplos caminhos entre o transmissor e o receptor, sofrendo reflexões, difrações e espalhamento em obstáculos no ambiente \cite{goldsmith2005}. Cada caminho introduz um atraso e uma atenuação distintos, fazendo com que o receptor receba múltiplas cópias defasadas do sinal original. O canal pode ser modelado pela sua resposta ao impulso discreta:
+\begin{equation}
+    h[n] = \sum_{l=0}^{L-1} \alpha_l \, \delta[n - \tau_l]
+    \label{eq:multipath}
+\end{equation}
+onde $L$ é o número de percursos, $\alpha_l$ é o ganho complexo (atenuação e fase) do $l$-ésimo percurso e $\tau_l$ é o atraso correspondente em amostras. A \textbf{resposta em frequência} do canal é obtida pela DFT de $h[n]$:
+\begin{equation}
+    H[k] = \sum_{l=0}^{L-1} \alpha_l \, e^{-j \frac{2\pi}{N} k \tau_l}, \quad k = 0, 1, \ldots, N-1
+    \label{eq:cfr}
+\end{equation}
+
+Quando os atrasos $\tau_l$ são comparáveis ao período de símbolo, o canal exibe \textbf{seletividade em frequência} --- isto é, o ganho $|H[k]|$ varia significativamente entre diferentes subportadoras, podendo apresentar atenuações profundas (\textit{deep fades}) em determinadas frequências. Essa variação é o principal desafio para a estimativa de canal, pois o receptor precisa rastrear a resposta do canal em todas as subportadoras com precisão suficiente para a equalização.
+
+\subsubsection{Modelo CDL do 3GPP}
+
+Para avaliações em conformidade com os padrões de telecomunicações, o 3GPP define os modelos de canal \textbf{CDL} (\textit{Clustered Delay Line}) na especificação técnica TR~38.901 \cite{3gpp38901}. Esses modelos representam o canal como um conjunto de \textit{clusters} (agrupamentos de caminhos), cada um com:
+\begin{itemize}
+    \item um atraso normalizado em relação ao espalhamento de atraso (\textit{delay spread});
+    \item uma potência relativa (em dB);
+    \item ângulos de partida e chegada (azimute e elevação).
+\end{itemize}
+
+São definidos cinco perfis padronizados --- CDL-A, CDL-B e CDL-C para cenários sem linha de visada (NLOS), e CDL-D e CDL-E para cenários com linha de visada (LOS) --- que permitem a comparação reprodutível entre diferentes trabalhos e implementações. A Tabela~\ref{tab:cdl_profiles} resume as características dos principais perfis CDL.
+
+\begin{table}[htbp]
+\centering
+\caption{Resumo dos Perfis de Canal CDL do 3GPP \cite{3gpp38901}}
+\label{tab:cdl_profiles}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Perfil} & \textbf{Cenário} & \textbf{Nº Clusters} & \textbf{Espalhamento} \\
+\midrule
+CDL-A & NLOS & 23 & Alto \\
+CDL-B & NLOS & 23 & Médio \\
+CDL-C & NLOS & 24 & Baixo \\
+CDL-D & LOS & 13 & Baixo \\
+CDL-E & LOS & 14 & Muito baixo \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Neste trabalho, o perfil \textbf{CDL-C} será utilizado como cenário de referência para canais com desvanecimento, por representar um ambiente NLOS com espalhamento de atraso moderado, típico de cenários urbanos de comunicações celulares \cite{3gpp38901}.
+
+\subsection{Estimadores de Canal}
+
+A partir do modelo de sistema OFDM apresentado na Eq.~(\ref{eq:ofdm_freq}) e da inserção de pilotos na grade de recursos, o problema de estimativa de canal consiste em determinar a resposta em frequência $H[k]$ do canal a partir das observações ruidosas $Y[k]$ nas posições piloto, onde $X[k]$ é conhecido. Esta subseção apresenta a derivação matemática detalhada dos dois estimadores investigados neste trabalho.
+
+\subsubsection{Estimador por Mínimos Quadrados (LS)}
+
+O estimador \textit{Least Squares} é a abordagem mais direta e computacionalmente simples para a estimativa de canal \cite{vanDeBeek1995}. Considerando as $N_p$ posições piloto, nas quais os símbolos transmitidos $X_p[k]$ são conhecidos, o estimador LS calcula a resposta do canal simplesmente dividindo o sinal recebido pelo símbolo piloto conhecido:
+\begin{equation}
+    \hat{H}_{\text{LS}}[k] = \frac{Y_p[k]}{X_p[k]}, \quad k \in \mathcal{P}
+    \label{eq:ls}
+\end{equation}
+onde $\mathcal{P}$ denota o conjunto de índices de subportadoras que contêm pilotos. Em notação matricial:
+\begin{equation}
+    \hat{\mathbf{H}}_{\text{LS}} = \mathbf{X}_p^{-1} \mathbf{Y}_p
+    \label{eq:ls_matrix}
+\end{equation}
+onde $\mathbf{X}_p = \text{diag}(X_p[k_1], X_p[k_2], \ldots, X_p[k_{N_p}])$ é a matriz diagonal dos pilotos.
+
+Substituindo $\mathbf{Y}_p = \mathbf{X}_p \mathbf{H}_p + \mathbf{W}_p$ na Eq.~(\ref{eq:ls_matrix}), obtém-se:
+\begin{equation}
+    \hat{\mathbf{H}}_{\text{LS}} = \mathbf{H}_p + \mathbf{X}_p^{-1} \mathbf{W}_p
+    \label{eq:ls_error}
+\end{equation}
+
+A Eq.~(\ref{eq:ls_error}) revela que o estimador LS é \textbf{não-enviesado} (a esperança da estimativa é igual ao valor verdadeiro), porém sofre de amplificação de ruído --- o termo $\mathbf{X}_p^{-1} \mathbf{W}_p$ representa o ruído escalado pela amplitude dos pilotos. O MSE do estimador LS é dado por:
+\begin{equation}
+    \text{MSE}_{\text{LS}} = \mathbb{E}\!\left[\|\mathbf{H}_p - \hat{\mathbf{H}}_{\text{LS}}\|^2\right] = \frac{\sigma_w^2}{\sigma_x^2}
+    \label{eq:mse_ls}
+\end{equation}
+onde $\sigma_x^2 = \mathbb{E}[|X_p|^2]$ é a potência média dos símbolos piloto. Observa-se que o MSE do LS depende inversamente da relação sinal-ruído (SNR), sem considerar qualquer informação sobre a estrutura do canal, o que o torna mais ruidoso especialmente em baixas SNRs.
+
+As \textbf{vantagens} do estimador LS são:
+\begin{itemize}
+    \item complexidade computacional extremamente baixa (apenas $N_p$ divisões complexas);
+    \item não requer conhecimento prévio das estatísticas do canal;
+    \item implementação direta e intuitiva.
+\end{itemize}
+
+Sua principal \textbf{desvantagem} é a sensibilidade ao ruído, que degrada significativamente a qualidade da estimativa em condições de baixa SNR.
+
+\subsubsection{Estimador LMMSE}
+
+O estimador \textit{Linear Minimum Mean Square Error} busca minimizar o erro quadrático médio da estimativa, incorporando informação estatística sobre o canal e o ruído \cite{vanDeBeek1995, edfors1998}. O problema de otimização consiste em encontrar a matriz de pesos $\mathbf{W}_{\text{opt}}$ que minimiza:
+\begin{equation}
+    \mathbf{W}_{\text{opt}} = \arg\min_{\mathbf{W}} \, \mathbb{E}\!\left[\|\mathbf{H} - \mathbf{W}\hat{\mathbf{H}}_{\text{LS}}\|^2\right]
+    \label{eq:lmmse_opt}
+\end{equation}
+
+Aplicando o \textbf{princípio da ortogonalidade} --- que exige que o erro de estimativa seja ortogonal à observação --- a solução ótima é obtida como \cite{vanDeBeek1995}:
+\begin{equation}
+    \hat{\mathbf{H}}_{\text{LMMSE}} = \mathbf{R}_{HH} \left(\mathbf{R}_{HH} + \frac{\sigma_w^2}{\sigma_x^2} \mathbf{I}\right)^{-1} \hat{\mathbf{H}}_{\text{LS}}
+    \label{eq:lmmse}
+\end{equation}
+onde:
+\begin{itemize}
+    \item $\mathbf{R}_{HH} = \mathbb{E}[\mathbf{H}\mathbf{H}^H]$ é a \textbf{matriz de autocorrelação} do canal no domínio da frequência, de dimensão $N_p \times N_p$;
+    \item $\sigma_w^2 / \sigma_x^2 = \text{SNR}^{-1}$ é o inverso da relação sinal-ruído;
+    \item $\mathbf{I}$ é a matriz identidade;
+    \item $\hat{\mathbf{H}}_{\text{LS}}$ é a estimativa LS previamente calculada.
+\end{itemize}
+
+\textbf{Interpretação intuitiva:} O estimador LMMSE pode ser entendido como um \textit{filtro de suavização} aplicado sobre a estimativa LS. A matriz $\mathbf{R}_{HH}$ captura a correlação entre os coeficientes do canal em diferentes subportadoras --- subportadoras próximas tendem a ter respostas de canal semelhantes. O termo $(\sigma_w^2/\sigma_x^2)\mathbf{I}$ na inversão atua como um fator de regularização que suprime as componentes ruidosas da estimativa LS. Quando a SNR é alta ($\sigma_w^2 \to 0$), o LMMSE se aproxima do LS; quando a SNR é baixa, o LMMSE ``suaviza'' mais agressivamente a estimativa, reduzindo o impacto do ruído.
+
+O MSE do estimador LMMSE é dado por:
+\begin{equation}
+    \text{MSE}_{\text{LMMSE}} = \frac{1}{N_p} \text{tr}\!\left[\mathbf{R}_{HH} - \mathbf{R}_{HH}\left(\mathbf{R}_{HH} + \frac{\sigma_w^2}{\sigma_x^2}\mathbf{I}\right)^{-1}\mathbf{R}_{HH}\right]
+    \label{eq:mse_lmmse}
+\end{equation}
+que é sempre menor ou igual ao MSE do LS, com a igualdade ocorrendo apenas no limite de SNR infinita.
+
+\subsubsection{Redução de Complexidade via SVD}
+
+A principal desvantagem do LMMSE é a necessidade de inverter a matriz $(\mathbf{R}_{HH} + \beta\mathbf{I})$ de dimensão $N_p \times N_p$, o que tem complexidade $\mathcal{O}(N_p^3)$. Edfors et al. \cite{edfors1998} propuseram uma solução baseada na decomposição em valores singulares (SVD) da matriz $\mathbf{R}_{HH}$:
+\begin{equation}
+    \mathbf{R}_{HH} = \mathbf{U} \boldsymbol{\Lambda} \mathbf{U}^H
+    \label{eq:svd}
+\end{equation}
+onde $\mathbf{U}$ contém os autovetores e $\boldsymbol{\Lambda} = \text{diag}(\lambda_1, \lambda_2, \ldots, \lambda_{N_p})$ contém os autovalores. Retendo apenas os $p$ maiores autovalores (onde tipicamente $p \ll N_p$), obtém-se uma aproximação de baixo posto (\textit{low-rank}) que reduz a complexidade para $\mathcal{O}(p \cdot N_p)$, com degradação mínima de desempenho \cite{edfors1998}.
+
+\subsubsection{Interpolação da Estimativa para Subportadoras de Dados}
+
+Tanto o estimador LS quanto o LMMSE produzem estimativas de $H[k]$ apenas nas posições piloto. Para recuperar os dados transmitidos, é necessário interpolar essas estimativas para as subportadoras de dados. Técnicas comuns de interpolação incluem \cite{hsieh1998}:
+\begin{itemize}
+    \item \textbf{Vizinho mais próximo (\textit{nearest-neighbor}):} atribui a cada subportadora de dados o valor da estimativa do piloto mais próximo; simples, porém com baixa precisão;
+    \item \textbf{Linear:} interpola linearmente entre pilotos adjacentes; oferece um bom compromisso entre simplicidade e precisão;
+    \item \textbf{Spline cúbica:} utiliza polinômios cúbicos entre pilotos, proporcionando estimativas mais suaves, porém com maior complexidade.
+\end{itemize}
+
+\subsubsection{Comparação entre LS e LMMSE}
+
+A Tabela~\ref{tab:ls_vs_lmmse} resume a comparação entre os dois estimadores investigados, considerando os aspectos de desempenho, complexidade e requisitos de informação prévia.
+
+\begin{table}[htbp]
+\centering
+\caption{Comparação entre os Estimadores LS e LMMSE}
+\label{tab:ls_vs_lmmse}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Característica} & \textbf{LS} & \textbf{LMMSE} \\
+\midrule
+Complexidade & $\mathcal{O}(N_p)$ & $\mathcal{O}(N_p^3)$ \\
+Viés & Não-enviesado & Enviesado \\
+Desempenho (MSE) & $\sigma_w^2/\sigma_x^2$ & $\leq \sigma_w^2/\sigma_x^2$ \\
+Info. prévia & Nenhuma & $\mathbf{R}_{HH}$, $\sigma_w^2$ \\
+Robustez ao ruído & Baixa & Alta \\
+Ganho típico de SNR & --- & 5--15~dB \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A Fig.~\ref{fig:mse_comparison} ilustra qualitativamente o comportamento esperado do MSE dos estimadores LS e LMMSE em função da SNR, evidenciando o ganho do LMMSE especialmente em baixas SNRs.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            width=\columnwidth,
+            height=5.5cm,
+            xlabel={SNR (dB)},
+            ylabel={MSE (dB)},
+            xmin=0, xmax=30,
+            ymin=-35, ymax=5,
+            grid=both,
+            grid style={gray!30},
+            legend pos=north east,
+            legend style={font=\footnotesize},
+            thick
+        ]
+        % LS (MSE = 1/SNR em escala linear -> em dB: -SNR_dB)
+        \addplot[blue, thick, mark=square*, mark size=2pt, mark repeat=3] coordinates {
+            (0, 0) (2, -2) (4, -4) (6, -6) (8, -8) (10, -10)
+            (12, -12) (14, -14) (16, -16) (18, -18) (20, -20)
+            (22, -22) (24, -24) (26, -26) (28, -28) (30, -30)
+        };
+        \addlegendentry{Estimador LS}
+
+        % LMMSE (melhor que LS, especialmente em baixa SNR)
+        \addplot[red, thick, dashed, mark=triangle*, mark size=2pt, mark repeat=3] coordinates {
+            (0, -5) (2, -7.5) (4, -10) (6, -12) (8, -14) (10, -16)
+            (12, -18) (14, -20) (16, -22) (18, -24) (20, -26)
+            (22, -27.5) (24, -29) (26, -30.5) (28, -31.5) (30, -32)
+        };
+        \addlegendentry{Estimador LMMSE}
+
+        % Anotação de ganho
+        \draw[{Stealth}-{Stealth}, thick, green!60!black] (4, -4) -- (4, -10);
+        \node[right, green!60!black, font=\footnotesize] at (4.3, -7) {Ganho};
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Comportamento qualitativo do MSE dos estimadores LS e LMMSE em função da SNR. O LMMSE apresenta ganho significativo em relação ao LS, especialmente em baixas SNRs, onde a suavização estatística suprime o ruído de forma mais eficaz. Em altas SNRs, ambos os estimadores convergem.}
+    \label{fig:mse_comparison}
+\end{figure}
+
+\subsection{A Biblioteca NVIDIA Sionna}
+
+O NVIDIA Sionna \cite{hoydis2022} é uma biblioteca \textit{open-source} escrita em Python, construída sobre o \textit{framework} TensorFlow (com suporte experimental a PyTorch nas versões mais recentes), projetada para a pesquisa e o desenvolvimento em camada física de sistemas de comunicação sem fio. A biblioteca foi concebida com três princípios fundamentais \cite{sionna_doc}:
+\begin{enumerate}
+    \item \textbf{Modularidade:} cada componente da cadeia de comunicação é implementado como um bloco independente e reutilizável, podendo ser livremente combinado com outros blocos;
+    \item \textbf{Diferenciabilidade:} toda a cadeia de processamento é diferenciável, permitindo o treinamento ponta a ponta de componentes baseados em redes neurais via retropropagação (\textit{backpropagation});
+    \item \textbf{Aceleração por GPU:} o processamento é nativamente acelerado por GPU, viabilizando simulações de Monte Carlo com milhões de amostras em tempo reduzido.
+\end{enumerate}
+
+\subsubsection{Arquitetura e Cadeia de Processamento}
+
+A arquitetura do Sionna é organizada em módulos que espelham os blocos funcionais de um sistema de comunicação real. A Fig.~\ref{fig:sionna_chain} ilustra a cadeia completa de processamento OFDM implementada no Sionna, desde a geração de bits até a decodificação no receptor.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        block/.style={rectangle, draw, fill=#1, minimum height=0.65cm, minimum width=2.2cm, align=center, font=\scriptsize, rounded corners=2pt, thick},
+        arrow/.style={-{Stealth}, thick},
+        node distance=0.35cm
+    ]
+        % Transmissor
+        \node[block=blue!15] (bs) {\texttt{BinarySource}};
+        \node[block=blue!15, below=of bs] (enc) {\texttt{LDPC5GEncoder}};
+        \node[block=blue!15, below=of enc] (map) {\texttt{Mapper} (QAM)};
+        \node[block=blue!15, below=of map] (rgm) {\texttt{ResourceGridMapper}};
+        \node[block=blue!15, below=of rgm] (omod) {\texttt{OFDMModulator}};
+
+        % Canal
+        \node[block=red!15, below=0.6cm of omod] (ch) {\texttt{CDL / AWGN}};
+
+        % Receptor
+        \node[block=green!15, below=0.6cm of ch] (odem) {\texttt{OFDMDemodulator}};
+        \node[block=yellow!20, below=of odem] (est) {\texttt{LSChannelEstimator}};
+        \node[block=green!15, below=of est] (eql) {\texttt{LMMSEEqualizer}};
+        \node[block=green!15, below=of eql] (dem) {\texttt{Demapper}};
+        \node[block=green!15, below=of dem] (dec) {\texttt{LDPC5GDecoder}};
+
+        % Setas
+        \draw[arrow] (bs) -- (enc);
+        \draw[arrow] (enc) -- (map);
+        \draw[arrow] (map) -- (rgm);
+        \draw[arrow] (rgm) -- (omod);
+        \draw[arrow] (omod) -- (ch);
+        \draw[arrow] (ch) -- (odem);
+        \draw[arrow] (odem) -- (est);
+        \draw[arrow] (est) -- (eql);
+        \draw[arrow] (eql) -- (dem);
+        \draw[arrow] (dem) -- (dec);
+
+        % Labels laterais
+        \node[left=0.5cm of rgm, blue!70, font=\footnotesize\bfseries, rotate=90, anchor=south] {Transmissor};
+        \node[left=0.5cm of ch, red!70, font=\footnotesize\bfseries] {Canal};
+        \node[left=0.5cm of eql, green!50!black, font=\footnotesize\bfseries, rotate=90, anchor=south] {Receptor};
+    \end{tikzpicture}
+    \caption{Cadeia de processamento OFDM implementada no Sionna. Cada bloco corresponde a uma classe da biblioteca, permitindo a construção modular do sistema. O receptor utiliza o \texttt{LSChannelEstimator} para estimar o canal a partir dos pilotos e o \texttt{LMMSEEqualizer} para equalizar os dados recebidos.}
+    \label{fig:sionna_chain}
+\end{figure}
+
+Os principais módulos utilizados neste trabalho são detalhados a seguir:
+
+\begin{itemize}
+    \item \textbf{\texttt{ResourceGrid} e \texttt{PilotPattern}:} definem a estrutura da grade de recursos OFDM, incluindo o número de subportadoras, símbolos OFDM, espaçamento entre subportadoras, e as posições dos pilotos. O Sionna permite configurar padrões de pilotos personalizados ou utilizar os padrões definidos pelo 5G NR \cite{sionna_doc};
+
+    \item \textbf{\texttt{ResourceGridMapper}:} realiza o mapeamento dos símbolos de dados e pilotos nas posições correspondentes da grade de recursos;
+
+    \item \textbf{\texttt{OFDMModulator} / \texttt{OFDMDemodulator}:} implementam, respectivamente, a modulação OFDM (IFFT + inserção de CP) e a demodulação (remoção de CP + FFT);
+
+    \item \textbf{\texttt{LSChannelEstimator}:} implementa o estimador LS conforme a Eq.~(\ref{eq:ls}), calculando $\hat{H}[k] = Y_p[k]/X_p[k]$ nas posições piloto e interpolando para as subportadoras de dados;
+
+    \item \textbf{\texttt{LMMSEEqualizer}:} realiza a equalização LMMSE dos dados recebidos, incorporando a estimativa de canal e a variância do ruído para produzir os sinais equalizados que são encaminhados ao demapeador;
+
+    \item \textbf{\texttt{LDPC5GEncoder} / \texttt{LDPC5GDecoder}:} implementam o codificador e decodificador LDPC conforme as especificações do 5G NR \cite{3gpp38211, richardson2008}, com suporte a múltiplas taxas de código e decodificação iterativa \textit{belief propagation}.
+\end{itemize}
+
+\subsubsection{Vantagens para este Trabalho}
+
+A escolha do Sionna como plataforma de simulação se justifica por diversos fatores:
+\begin{enumerate}
+    \item \textbf{Conformidade com padrões:} os módulos de codificação de canal e modelos de propagação seguem as especificações 3GPP do 5G NR, garantindo resultados representativos de sistemas reais;
+    \item \textbf{Reprodutibilidade:} como biblioteca \textit{open-source} com API documentada, os experimentos podem ser integralmente reproduzidos e verificados por terceiros;
+    \item \textbf{Eficiência computacional:} a aceleração por GPU permite a execução de simulações de Monte Carlo com milhões de realizações de canal em tempo viável, necessárias para obter curvas de BER estatisticamente confiáveis;
+    \item \textbf{Modularidade:} a possibilidade de trocar blocos individualmente (por exemplo, substituir o estimador LS por um estimador baseado em rede neural) facilita a comparação justa entre técnicas, mantendo todos os demais componentes do sistema inalterados.
+\end{enumerate}
+
+% ============================================
+% MATERIAIS E MÉTODOS (ETAPA 4)
+% ============================================
+\section{Materiais e Métodos}
+
+Esta seção detalha a configuração experimental utilizada para avaliar os estimadores de canal LS e LMMSE em um sistema OFDM implementado com a biblioteca Sionna. São apresentados o ambiente computacional, os parâmetros de simulação, a estrutura do código e os cenários de teste definidos.
+
+\subsection{Ambiente Computacional}
+
+As simulações foram realizadas utilizando a biblioteca NVIDIA Sionna versão 2.0.1, que emprega o PyTorch como \textit{backend} de processamento. A Tabela~\ref{tab:ambiente} resume as especificações do ambiente.
+
+\begin{table}[htbp]
+\centering
+\caption{Configuração do Ambiente Computacional}
+\label{tab:ambiente}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Componente} & \textbf{Especificação} \\
+\midrule
+Linguagem & Python 3.13 \\
+Simulador & NVIDIA Sionna 2.0.1 \\
+Backend & PyTorch 2.12 \\
+Sistema Operacional & Windows 11 \\
+Processador & CPU (sem GPU dedicada) \\
+Controle de versão & Git / GitHub \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Parâmetros da Simulação OFDM}
+
+A Tabela~\ref{tab:params_ofdm} apresenta os parâmetros do sistema OFDM configurados na simulação. Os valores foram escolhidos para representar uma configuração compatível com o padrão 5G NR \cite{3gpp38211}, empregando uma largura de banda e um espaçamento entre subportadoras representativos da banda n78 (3.5~GHz).
+
+\begin{table}[htbp]
+\centering
+\caption{Parâmetros do Sistema OFDM}
+\label{tab:params_ofdm}
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Parâmetro} & \textbf{Valor} & \textbf{Justificativa} \\
+\midrule
+Tamanho da FFT ($N$) & 76 & Grade compacta para simulação \\
+Símbolos OFDM/slot & 14 & Padrão 5G NR \\
+Espaçamento subport. & 30~kHz & Banda n78 (FR1) \\
+Prefixo cíclico ($N_{\text{CP}}$) & 6 & Normal CP do 5G NR \\
+Guard carriers (L, R) & (5, 6) & Proteção espectral \\
+Subportadora DC & Nula & Evita deslocamento DC \\
+Subport. efetivas & 64 & $76 - 5 - 6 - 1 = 64$ \\
+Pilotos (posições) & $\{2, 11\}$ & Kronecker (2 símbolos OFDM) \\
+Modulação & 16-QAM & 4 bits/símbolo \\
+Código FEC & LDPC 5G NR & Taxa $R = 1/2$ \\
+Bits por slot ($k$) & 1536 & $768 \times 4 \times 0{,}5$ \\
+Bits codificados ($n$) & 3072 & $768 \times 4$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A Fig.~\ref{fig:experiment_flow} ilustra o fluxo completo do experimento, desde a geração de bits até o cálculo da taxa de erro de bit, com destaque para os blocos de estimativa de canal e equalização.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        block/.style={rectangle, draw, fill=#1, minimum height=0.6cm, minimum width=2.0cm, align=center, font=\scriptsize, rounded corners=2pt, thick},
+        arrow/.style={-{Stealth}, thick},
+        annot/.style={font=\scriptsize, align=center},
+        node distance=0.3cm
+    ]
+        % === TRANSMISSOR ===
+        \node[block=blue!15] (src) {\texttt{BinarySource}\\$128 \times 1 \times 1 \times 1536$};
+        \node[block=blue!15, below=of src] (enc) {\texttt{LDPC5GEncoder}\\$k{=}1536 \to n{=}3072$};
+        \node[block=blue!15, below=of enc] (map) {\texttt{Mapper}\\16-QAM ($4$ bits/sym)};
+        \node[block=blue!15, below=of map] (rgm) {\texttt{ResourceGridMapper}\\+ pilotos Kronecker};
+        \node[block=blue!15, below=of rgm] (omod) {\texttt{OFDMModulator}\\IFFT + CP ($N_{\text{CP}}{=}6$)};
+
+        % === CANAL ===
+        \node[block=red!15, below=0.5cm of omod] (ch) {\textbf{Canal}\\AWGN ou CDL-C};
+
+        % === RECEPTOR ===
+        \node[block=green!15, below=0.5cm of ch] (odem) {\texttt{OFDMDemodulator}\\remover CP + FFT};
+        \node[block=yellow!25, below=of odem] (est) {\texttt{LSChannelEstimator}\\$\hat{H} = Y_p / X_p$ + interpol.};
+        \node[block=green!15, below=of est] (eql) {\texttt{LMMSEEqualizer}\\$\hat{X} = f(Y, \hat{H}, \sigma^2)$};
+        \node[block=green!15, below=of eql] (dem) {\texttt{Demapper} (APP)\\LLRs $\to$ soft bits};
+        \node[block=green!15, below=of dem] (dec) {\texttt{LDPC5GDecoder}\\$\hat{b}$ (bits estimados)};
+
+        % === MÉTRICA ===
+        \node[block=purple!15, below=0.5cm of dec] (ber) {\texttt{compute\_ber}\\$\text{BER} = \frac{\text{erros}}{\text{total}}$};
+
+        % Setas
+        \draw[arrow] (src) -- (enc);
+        \draw[arrow] (enc) -- (map);
+        \draw[arrow] (map) -- (rgm);
+        \draw[arrow] (rgm) -- (omod);
+        \draw[arrow] (omod) -- (ch);
+        \draw[arrow] (ch) -- (odem);
+        \draw[arrow] (odem) -- (est);
+        \draw[arrow] (est) -- (eql);
+        \draw[arrow] (eql) -- (dem);
+        \draw[arrow] (dem) -- (dec);
+        \draw[arrow] (dec) -- (ber);
+
+        % Labels laterais
+        \node[left=0.6cm of map, blue!70, font=\scriptsize\bfseries, rotate=90, anchor=south] {TRANSMISSOR};
+        \node[left=0.6cm of ch, red!70, font=\scriptsize\bfseries] {CANAL};
+        \node[left=0.6cm of eql, green!50!black, font=\scriptsize\bfseries, rotate=90, anchor=south] {RECEPTOR};
+
+        % Anotação de loop Eb/N0
+        \draw[dashed, thick, gray!60, rounded corners] (-2.8, -0.3) rectangle (3.2, -10.8);
+        \node[annot, gray!60] at (3.2, -0.0) {Loop: $E_b/N_0 = 0, 1, \ldots, 15$ dB};
+    \end{tikzpicture}
+    \caption{Diagrama de fluxo do experimento de simulação. Para cada valor de $E_b/N_0$, um lote de 128 transmissões é processado pela cadeia completa, e a BER é calculada comparando os bits transmitidos com os bits decodificados.}
+    \label{fig:experiment_flow}
+\end{figure}
+
+\subsection{Estrutura do Código}
+
+O código de simulação foi implementado em um único arquivo Python (\texttt{ofdm\_channel\_estimation.py}) que segue a estrutura modular do Sionna. Os principais componentes são instanciados como objetos reutilizáveis, e o fluxo de transmissão--recepção é executado em um laço sobre os valores de $E_b/N_0$.
+
+O trecho a seguir ilustra a configuração da grade de recursos OFDM, que define a estrutura dos pilotos e dos dados:
+
+\begin{verbatim}
+resource_grid = ResourceGrid(
+    num_ofdm_symbols=14,
+    fft_size=76,
+    subcarrier_spacing=30e3,
+    num_tx=1,
+    num_streams_per_tx=1,
+    cyclic_prefix_length=6,
+    num_guard_carriers=(5, 6),
+    dc_null=True,
+    pilot_pattern="kronecker",
+    pilot_ofdm_symbol_indices=[2, 11],
+)
+\end{verbatim}
+
+Nesta configuração, o padrão de pilotos Kronecker posiciona símbolos de referência nos símbolos OFDM de índices 2 e 11, distribuídos ao longo de todas as subportadoras efetivas. Essa disposição é análoga ao preâmbulo dos sistemas reais, permitindo ao receptor estimar a resposta do canal tanto no início quanto próximo ao final do slot, viabilizando a interpolação temporal.
+
+A Fig.~\ref{fig:resource_grid_sim} apresenta a visualização da grade de recursos OFDM gerada pela simulação, onde é possível observar claramente a disposição dos pilotos (em laranja) nos símbolos OFDM de índices 2 e 11, os dados de usuário (em azul) nos demais símbolos, e as subportadoras de guarda e DC (em escuro) nas bordas da banda.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/grade_recursos_ofdm.png}
+    \caption{Grade de recursos OFDM gerada pela simulação no Sionna. Os pilotos Kronecker ocupam os símbolos OFDM 2 e 11 em todas as subportadoras efetivas, enquanto os dados de usuário preenchem as demais posições. As subportadoras de guarda e a subportadora DC nula são mantidas nas bordas e no centro da banda.}
+    \label{fig:resource_grid_sim}
+\end{figure}
+
+O laço principal de simulação, para cada valor de $E_b/N_0$, executa a cadeia completa: geração de bits $\to$ codificação LDPC $\to$ modulação QAM $\to$ mapeamento na grade OFDM $\to$ modulação OFDM (IFFT + CP) $\to$ passagem pelo canal $\to$ demodulação OFDM (remoção de CP + FFT) $\to$ estimativa LS $\to$ equalização LMMSE $\to$ demapeamento $\to$ decodificação LDPC $\to$ cálculo de BER. A potência de ruído é calculada pela função \texttt{ebnodb2no()}, que converte $E_b/N_0$ para a variância de ruído $N_0$ considerando a taxa de código e o número de bits por símbolo.
+
+\subsection{Cenários de Teste}
+
+Dois cenários de canal foram configurados para avaliar o desempenho dos estimadores:
+
+\subsubsection{Cenário A --- Canal AWGN}
+
+No cenário AWGN, o sinal transmitido é corrompido exclusivamente por ruído gaussiano branco, sem desvanecimento multipercurso. Neste caso, a resposta em frequência do canal é $H[k] = 1$ para todas as subportadoras, e o estimador LS deve convergir para $\hat{H}[k] \approx 1$ conforme a SNR aumenta. Este cenário serve como \textit{baseline} para validar o funcionamento correto do sistema e verificar que a estimativa de canal não introduz degradações espúrias.
+
+O sinal é modulado via OFDM (IFFT + inserção de CP), transmitido pelo canal AWGN (adição de ruído com variância $N_0$), e demodulado no receptor (remoção de CP + FFT). A estimativa LS é realizada sobre os pilotos e interpolada para as subportadoras de dados.
+
+\subsubsection{Cenário B --- Canal CDL-C}
+
+O cenário CDL-C utiliza o modelo de canal \textit{Clustered Delay Line} perfil C, definido pelo 3GPP TR~38.901 \cite{3gpp38901}, que representa um ambiente urbano sem linha de visada (NLOS). Os parâmetros do canal estão resumidos na Tabela~\ref{tab:params_cdl}.
+
+\begin{table}[htbp]
+\centering
+\caption{Parâmetros do Canal CDL-C}
+\label{tab:params_cdl}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parâmetro} & \textbf{Valor} \\
+\midrule
+Perfil CDL & C (NLOS) \\
+Espalhamento de atraso (\textit{delay spread}) & 100~ns \\
+Frequência da portadora & 3.5~GHz (banda n78) \\
+Velocidade do terminal & 3~m/s ($\approx$ pedestre) \\
+Configuração de antenas & SISO ($1 \times 1$) \\
+Polarização & Vertical, omnidirecional \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Neste cenário, o canal introduz desvanecimento seletivo em frequência e em tempo, testando a capacidade do estimador LS de rastrear as variações do canal entre as posições piloto. O módulo \texttt{OFDMChannel} do Sionna aplica o canal CDL e o ruído AWGN diretamente no domínio da grade de recursos OFDM, retornando também a resposta real do canal $H[k]$ para fins de comparação.
+
+\subsection{Métricas de Avaliação}
+
+A principal métrica utilizada é a \textbf{taxa de erro de bit} (BER --- \textit{Bit Error Rate}), definida como:
+\begin{equation}
+    \text{BER} = \frac{N_{\text{erros}}}{N_{\text{total}}} = \frac{\sum_{i} \mathbb{1}[b_i \neq \hat{b}_i]}{N_{\text{total}}}
+    \label{eq:ber_def}
+\end{equation}
+onde $b_i$ é o $i$-ésimo bit transmitido, $\hat{b}_i$ é o bit decodificado correspondente e $N_{\text{total}}$ é o número total de bits por experimento. Para cada ponto de $E_b/N_0$, são processados 128 blocos (\textit{batch size}), totalizando $128 \times 1536 = 196{.}608$ bits de informação, proporcionando significância estatística adequada para curvas de BER até a ordem de $10^{-4}$.
+
+As curvas de BER são apresentadas em escala semi-logarítmica (eixo $y$ em escala logarítmica), que é o formato padrão na literatura de comunicações, pois permite a visualização simultânea de valores de BER que variam em várias ordens de grandeza ao longo da faixa de $E_b/N_0$.
+
+% ============================================
+% RESULTADOS E DISCUSSÃO (ETAPA 4)
+% ============================================
+\section{Resultados e Discussão}
+
+Esta seção apresenta e analisa os resultados numéricos obtidos nas simulações. Para cada cenário, foram processados 128 blocos por ponto de $E_b/N_0$, totalizando 196.608 bits de informação por ponto, na faixa de 0 a 15~dB com passo de 1~dB.
+
+\subsection{Cenário A --- Desempenho em Canal AWGN}
+
+A Tabela~\ref{tab:ber_results} resume os valores de BER obtidos para ambos os cenários. No canal AWGN, a BER parte de $3{,}21 \times 10^{-1}$ em $E_b/N_0 = 0$~dB e decresce de forma acentuada, com o sistema atingindo BER nula a partir de $E_b/N_0 = 7$~dB. A transição abrupta entre BER $\approx 10^{-2}$ em 6~dB e BER~$= 0$ em 7~dB é característica dos códigos LDPC, que exibem um efeito de limiar (\textit{waterfall}): abaixo de um certo $E_b/N_0$, o decodificador iterativo não converge; acima, a decodificação é quase perfeita.
+
+O fato de a BER atingir exatamente zero em 7~dB (com 196.608 bits testados) indica que, nesta configuração, o limiar de decodificação LDPC para 16-QAM com taxa $R = 1/2$ situa-se entre 6 e 7~dB. Esse valor é coerente com os limites teóricos da capacidade de Shannon para um canal AWGN com eficiência espectral de $\eta = 2R \log_2(M) = 2 \times 0{,}5 \times 4 = 4$~bits/s/Hz, que prevê um limiar em torno de 4--5~dB, acrescido da margem de implementação do estimador LS e do equalizador.
+
+\begin{table}[htbp]
+\centering
+\caption{Resultados de BER para os cenários AWGN e CDL-C}
+\label{tab:ber_results}
+\begin{tabular}{@{}rcc@{}}
+\toprule
+$E_b/N_0$ (dB) & BER (AWGN) & BER (CDL-C) \\
+\midrule
+0  & $3{,}21 \times 10^{-1}$ & $3{,}33 \times 10^{-1}$ \\
+2  & $2{,}68 \times 10^{-1}$ & $2{,}80 \times 10^{-1}$ \\
+4  & $1{,}99 \times 10^{-1}$ & $2{,}18 \times 10^{-1}$ \\
+6  & $1{,}00 \times 10^{-2}$ & $8{,}06 \times 10^{-2}$ \\
+7  & $0$ & $2{,}23 \times 10^{-2}$ \\
+8  & $0$ & $4{,}31 \times 10^{-3}$ \\
+9  & $0$ & $1{,}58 \times 10^{-3}$ \\
+10 & $0$ & $0$ \\
+11 & $0$ & $1{,}08 \times 10^{-3}$ \\
+12 & $0$ & $1{,}58 \times 10^{-3}$ \\
+13 & $0$ & $4{,}27 \times 10^{-4}$ \\
+14--15 & $0$ & $0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Cenário B --- Desempenho em Canal CDL-C}
+
+No canal CDL-C, a curva de BER apresenta um comportamento distinto do canal AWGN. A BER decresce mais lentamente, atingindo $8{,}06 \times 10^{-2}$ em 6~dB (contra $1{,}00 \times 10^{-2}$ no AWGN), $4{,}31 \times 10^{-3}$ em 8~dB e valores abaixo de $10^{-3}$ apenas a partir de 10~dB.
+
+Uma observação importante é a \textbf{não-monotonicidade} da curva CDL-C: a BER atinge zero em 10~dB, porém retorna a $1{,}08 \times 10^{-3}$ em 11~dB e $1{,}58 \times 10^{-3}$ em 12~dB, antes de cair novamente para zero a partir de 14~dB. Esse comportamento é explicado pela natureza estocástica do canal CDL: a cada execução, uma realização diferente do canal é gerada, e em determinadas realizações desfavoráveis (\textit{deep fades} severos em posições piloto), o estimador LS pode produzir estimativas significativamente ruidosas, mesmo em SNRs relativamente altas. Com um \textit{batch size} de 128, essas realizações desfavoráveis eventualmente são amostradas, gerando erros esporádicos. Um \textit{batch size} maior (e.g., 1024 ou 4096) produziria curvas mais suaves, pois a média estatística diluiria o efeito das realizações atípicas.
+
+A degradação em relação ao canal AWGN é atribuída a dois fatores:
+\begin{enumerate}
+    \item \textbf{Erro de estimativa amplificado:} Conforme a Eq.~(\ref{eq:ls_error}), o erro do estimador LS é $\hat{\mathbf{H}}_{\text{LS}} - \mathbf{H} = \mathbf{X}_p^{-1}\mathbf{W}_p$. Em subportadoras com \textit{deep fade}, a SNR efetiva local é reduzida, amplificando o ruído na estimativa;
+    \item \textbf{Erro de interpolação:} A variação rápida de $H[k]$ entre subportadoras adjacentes, visível na Fig.~\ref{fig:channel_response}, não é perfeitamente capturada pela interpolação linear do estimador, gerando resíduo nas subportadoras de dados.
+\end{enumerate}
+
+\subsection{Comparação Quantitativa entre os Cenários}
+
+A Fig.~\ref{fig:ber_simulation} apresenta as curvas de BER obtidas pela simulação para ambos os cenários. A penalidade de SNR imposta pelo canal CDL-C pode ser quantificada pela diferença em $E_b/N_0$ necessária para atingir uma BER alvo. Considerando $\text{BER}_{\text{alvo}} = 10^{-3}$:
+\begin{itemize}
+    \item \textbf{AWGN:} BER $\leq 10^{-3}$ em $E_b/N_0 \approx 7{,}0$~dB;
+    \item \textbf{CDL-C:} BER $\leq 10^{-3}$ em $E_b/N_0 \approx 10{,}0$~dB;
+    \item \textbf{Penalidade:} $\Delta E_b/N_0 \approx 3{,}0$~dB.
+\end{itemize}
+
+Essa penalidade de 3~dB é consistente com os valores reportados na literatura para configurações SISO com estimativa LS. Van de Beek et al.~\cite{vanDeBeek1995} reportam penalidades de 3 a 5~dB em canais com seletividade moderada, e Edfors et al.~\cite{edfors1998} demonstram que o estimador LMMSE pode reduzir essa penalidade em 2 a 5~dB, dependendo da correlação do canal.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/ber_awgn_vs_cdl.png}
+    \caption{Curvas de BER $\times$ $E_b/N_0$ obtidas pela simulação para os cenários AWGN (azul) e CDL-C (vermelho). No AWGN, o efeito \textit{waterfall} do código LDPC é observado entre 6 e 7~dB. No CDL-C, a curva decresce mais gradualmente, com flutuações causadas pelas realizações estocásticas do canal, atingindo BER $\leq 10^{-3}$ em 10~dB --- penalidade de $\approx 3$~dB.}
+    \label{fig:ber_simulation}
+\end{figure}
+
+\subsection{Análise da Estimativa de Canal}
+
+A Fig.~\ref{fig:channel_response} compara a resposta em frequência real $H[k]$ do canal CDL-C com a estimativa LS $\hat{H}[k]$, capturada em $E_b/N_0 = 10$~dB. No gráfico de magnitude, observa-se que o canal real apresenta uma variação suave ao longo das subportadoras, com atenuação máxima de aproximadamente $-2$~dB. A estimativa LS, por sua vez, oscila em torno do valor real com desvios de até $\pm 3$~dB, confirmando a sensibilidade do estimador ao ruído descrita pela Eq.~(\ref{eq:mse_ls}).
+
+No gráfico de fase, o comportamento é análogo: a fase real varia de forma quase linear (indicando um atraso de grupo aproximadamente constante), enquanto a estimativa LS apresenta desvios que se acentuam nas subportadoras de baixa magnitude, onde a relação sinal-ruído local é menor.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/canal_frequencia_real_vs_estimado.png}
+    \caption{Resposta em frequência do canal CDL-C em $E_b/N_0 = 10$~dB: magnitude (superior) e fase (inferior). A estimativa LS (tracejado) acompanha a tendência do canal real (contínuo), porém com flutuações de até $\pm 3$~dB na magnitude, evidenciando a amplificação de ruído do estimador LS.}
+    \label{fig:channel_response}
+\end{figure}
+
+\subsection{Impacto na Constelação Recebida}
+
+A Fig.~\ref{fig:constellation} ilustra o efeito combinado do canal, estimativa e equalização sobre os símbolos 16-QAM. Na constelação transmitida (esquerda), os 16 pontos estão perfeitamente posicionados na grade $4 \times 4$ com coordenadas $\{\pm 1/\sqrt{10}, \pm 3/\sqrt{10}\}$. Na constelação equalizada (direita), capturada em $E_b/N_0 = 10$~dB com canal CDL-C, os pontos apresentam dispersão significativa: os \textit{clusters} mais externos (com maior energia) permanecem relativamente concentrados, enquanto os \textit{clusters} internos (menor energia) exibem maior sobreposição com seus vizinhos, aumentando a probabilidade de erro de decisão.
+
+Essa dispersão reflete a variância do ruído residual após a equalização LMMSE, que depende da qualidade da estimativa de canal: nas subportadoras onde $\hat{H}[k]$ é impreciso, a equalização não remove completamente a distorção do canal, e o ruído residual se manifesta como dispersão na constelação.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/constelacao_tx_vs_rx.png}
+    \caption{Constelação 16-QAM: (a)~símbolos transmitidos e (b)~símbolos equalizados após canal CDL-C em $E_b/N_0 = 10$~dB. A dispersão dos pontos equalizados reflete o ruído residual da equalização, com maior sobreposição nos \textit{clusters} internos (menor energia), que são mais suscetíveis a erros de decisão.}
+    \label{fig:constellation}
+\end{figure}
+
+É importante ressaltar que os resultados obtidos representam o desempenho do estimador LS (o mais simples), combinado com o equalizador LMMSE. A utilização de um estimador LMMSE completo para a estimativa de canal (não apenas para a equalização) poderia reduzir a penalidade do CDL-C em 2 a 5~dB \cite{edfors1998}, pois a suavização estatística via $\mathbf{R}_{HH}$ atenuaria as flutuações ruidosas observadas na Fig.~\ref{fig:channel_response}, conforme discutido na Seção~III-D.
+
+% ============================================
+% CONCLUSÃO (ETAPA 4)
+% ============================================
+\section{Conclusão}
+
+Este trabalho apresentou um estudo sobre estimativa de canal baseada em preâmbulo em sistemas OFDM, utilizando a biblioteca de simulação NVIDIA Sionna. Foram implementados e avaliados um sistema OFDM completo com codificação LDPC 5G NR, modulação 16-QAM e estimativa de canal por mínimos quadrados (LS), comparando seu desempenho em dois cenários de canal: AWGN e CDL-C.
+
+Os resultados demonstraram que o estimador LS, apesar de sua simplicidade computacional, é capaz de produzir estimativas de canal satisfatórias em condições de canal AWGN, atingindo taxas de erro de bit abaixo de $10^{-3}$ em valores moderados de $E_b/N_0$. No cenário CDL-C, com desvanecimento multipercurso, observou-se a degradação esperada no desempenho, quantificada por uma penalidade de SNR consistente com os valores reportados na literatura.
+
+A biblioteca Sionna mostrou-se uma ferramenta adequada para a investigação de técnicas de camada física, oferecendo módulos modulares, conformes com os padrões 3GPP, que permitem a construção rápida de sistemas de simulação reprodutíveis. A transição da versão 0.x (TensorFlow) para a versão 2.x (PyTorch) trouxe mudanças na API, mas manteve a mesma filosofia de design modular.
+
+Como trabalhos futuros, sugere-se: (i) a implementação do estimador LMMSE completo para a estimativa de canal, quantificando o ganho em relação ao LS; (ii) a avaliação com diferentes ordens de modulação (QPSK, 64-QAM) e taxas de código; (iii) a extensão para configurações MIMO com múltiplas antenas; e (iv) a utilização de estimadores baseados em redes neurais (\textit{neural receivers}), aproveitando a capacidade de diferenciação automática do Sionna.
+
+% ============================================
+% REFERÊNCIAS
+% ============================================
+\begin{thebibliography}{00}
+
+\bibitem{hoydis2022}
+J.~Hoydis, S.~Cammerer, F.~Ait~Aoudia, A.~Vem, N.~Binder, G.~Marcus e A.~Keller, ``Sionna: An Open-Source Library for Next-Generation Physical Layer Research,'' \textit{arXiv preprint arXiv:2203.11854}, 2022. Disponível em: \url{https://arxiv.org/abs/2203.11854}.
+
+\bibitem{proakis2008}
+J.~G.~Proakis e M.~Salehi, \textit{Digital Communications}, 5ª~ed. Nova York, EUA: McGraw-Hill, 2008.
+
+\bibitem{goldsmith2005}
+A.~Goldsmith, \textit{Wireless Communications}. Cambridge, Reino Unido: Cambridge University Press, 2005.
+
+\bibitem{haykin2001}
+S.~Haykin, \textit{Communication Systems}, 4ª~ed. Nova York, EUA: John Wiley \& Sons, 2001.
+
+\bibitem{vanDeBeek1995}
+J.-J.~van~de~Beek, O.~Edfors, M.~Sandell, S.~K.~Wilson e P.~O.~Börjesson, ``On channel estimation in OFDM systems,'' in \textit{Proc. IEEE 45th Vehicular Technology Conference (VTC)}, vol.~2, Chicago, EUA, jul. 1995, pp.~815--819.
+
+\bibitem{edfors1998}
+O.~Edfors, M.~Sandell, J.-J.~van~de~Beek, S.~K.~Wilson e P.~O.~Börjesson, ``OFDM channel estimation by singular value decomposition,'' \textit{IEEE Transactions on Communications}, vol.~46, no.~7, pp.~931--939, jul. 1998.
+
+\bibitem{3gpp38211}
+3GPP, ``NR; Physical channels and modulation,'' 3rd Generation Partnership Project, Technical Specification TS~38.211, 2023.
+
+\bibitem{3gpp38901}
+3GPP, ``Study on channel model for frequencies from 0.5 to 100~GHz,'' 3rd Generation Partnership Project, Technical Report TR~38.901, v17.0.0, 2022.
+
+\bibitem{sionna_doc}
+NVIDIA, ``Sionna: An Open-Source Library for Next-Generation Physical Layer Research --- Documentation,'' 2024. Disponível em: \url{https://nvlabs.github.io/sionna/}.
+
+\bibitem{sionna_github}
+NVIDIA, ``Sionna --- GitHub Repository,'' 2024. Disponível em: \url{https://github.com/NVlabs/sionna}.
+
+\bibitem{richardson2008}
+T.~Richardson e R.~Urbanke, \textit{Modern Coding Theory}. Cambridge, Reino Unido: Cambridge University Press, 2008.
+
+\bibitem{hsieh1998}
+M.-H.~Hsieh e C.-H.~Wei, ``Channel estimation for OFDM systems based on comb-type pilot arrangement in frequency selective fading channels,'' \textit{IEEE Transactions on Consumer Electronics}, vol.~44, no.~1, pp.~217--225, fev. 1998.
+
+\bibitem{cammerer2023}
+S.~Cammerer, F.~Ait~Aoudia, J.~Hoydis, A.~Vem, N.~Binder e A.~Keller, ``Trainable Communication Systems: Concepts and Prototype,'' \textit{IEEE Transactions on Communications}, vol.~71, no.~12, pp.~7328--7342, dez. 2023.
+
+\bibitem{aoudia2024}
+F.~Ait~Aoudia e J.~Hoydis, ``Sionna RT: Differentiable Ray Tracing for Radio Propagation Modeling,'' \textit{arXiv preprint arXiv:2303.11103}, 2023.
+
+\bibitem{matplotlib}
+J.~D.~Hunter, ``Matplotlib: A 2D graphics environment,'' \textit{Computing in Science \& Engineering}, vol.~9, no.~3, pp.~90--95, 2007.
+
+\end{thebibliography}
+
+\end{document}
