@@ -138,16 +138,13 @@ def run_neural_receiver_demo():
     
     os.makedirs('extras/results', exist_ok=True)
     
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
     
     axes[0].scatter(x_linear_np.real, x_linear_np.imag, s=1, alpha=0.5, color='orange')
     axes[0].set_title("Equalizador LMMSE (Tradicional)", fontsize=12)
     
     axes[1].scatter(x_neural_np.real, x_neural_np.imag, s=1, alpha=0.5, color='green')
     axes[1].set_title("Receptor Neural (Inteligência Artificial)", fontsize=12)
-    
-    axes[2].scatter(x_orig_np.real, x_orig_np.imag, s=1, alpha=0.5, color='blue')
-    axes[2].set_title("Sinal Original Perfeito (Gabarito)", fontsize=12)
     
     for ax in axes:
         ax.set_aspect('equal')

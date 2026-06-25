@@ -74,19 +74,15 @@ def generate_constellations():
     
     print("Desenhando o Mapa de Estrelas (Constelações)...")
     
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     
-    # Grafico 1: Original
-    axes[0].scatter(tx_symbols.real, tx_symbols.imag, s=2, color="#2196F3", alpha=0.5)
-    axes[0].set_title("1. Sinal Original (Tx)\nConstelação Limpa (QPSK)", fontsize=13)
+    # Grafico 1: Recebido (Com fading e ruído)
+    axes[0].scatter(rx_raw.real, rx_raw.imag, s=2, color="#FF9800", alpha=0.5)
+    axes[0].set_title("1. Sinal Recebido (Y = H*X + N)\nTotalmente destorcido pelo Fading (CDL-C)", fontsize=13)
     
-    # Grafico 2: Recebido (Com fading e ruído)
-    axes[1].scatter(rx_raw.real, rx_raw.imag, s=2, color="#FF9800", alpha=0.5)
-    axes[1].set_title("2. Sinal Recebido (Y = H*X + N)\nTotalmente destorcido pelo Fading (CDL-C)", fontsize=13)
-    
-    # Grafico 3: Equalizado
-    axes[2].scatter(rx_eq.real, rx_eq.imag, s=2, color="#4CAF50", alpha=0.5)
-    axes[2].set_title("3. Sinal Equalizado (X_hat = Y / H_hat)\nRecuperado pelo Equalizador LMMSE", fontsize=13)
+    # Grafico 2: Equalizado
+    axes[1].scatter(rx_eq.real, rx_eq.imag, s=2, color="#4CAF50", alpha=0.5)
+    axes[1].set_title("2. Sinal Equalizado (X_hat = Y / H_hat)\nRecuperado pelo Equalizador LMMSE", fontsize=13)
     
     for ax in axes:
         ax.axhline(y=0, color='k', linewidth=0.5)
